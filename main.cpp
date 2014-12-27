@@ -9,12 +9,11 @@
 #include <algorithm> //find
 
 //mysql includes
-#include <mysql_connection.h>
-#include "mysql_driver.h"
+//#include "mysql_driver.h"
 #include <cppconn/driver.h>
-#include <cppconn/exception.h>
 #include <cppconn/resultset.h>
 #include <cppconn/statement.h>
+#include <cppconn/exception.h>
 
 //timing
 #include <time.h>
@@ -58,7 +57,14 @@ int run(char** filenames)
 	int runID = atoi(strtok(baseFileName,"+"));
 	int eventID = atoi(strtok(NULL,"+"));
 	char * server = strtok(NULL,"+");
+	server = "e906-db3.fnal.gov";//TESTING
+	int port = 3306;
+	if (strcmp(server,"seaquel.physics.illinois.edu")==0)
+	{
+		port = 3283;
+	}
 	char * schema = strtok(NULL,"+");
+	schema = "user_mariusz_dev"; //TESTING
 	char * type = strtok(NULL,".");	
 
 	//information from settings
@@ -105,17 +111,35 @@ int run(char** filenames)
 		sql::Driver *driver;
 		sql::Connection *con;
 	    sql::Statement *stmt;
-		sql::ResultSet *res;
+
+		sql::ResultSet *hodoMaskRes;
+		sql::ResultSet *RTRes;
+		sql::ResultSet *chamberInfoRes;
+		sql::ResultSet *hodoInfoRes;
+		sql::ResultSet *triggerRoadsRes;
+		sql::ResultSet *triggerInfoRes;
+		sql::ResultSet *scalerInfoRes;
+
 		/* Create a connection */
 		driver = get_driver_instance();
 		con = driver->connect(server, user, password);
 		con->setSchema(schema);
 		stmt = con->createStatement();
-		res = stmt->executeQuery("SELECT * FROM RT");
+
+
+		//HodoMask
+		res = stmt->executeQuery(hodoMaskQuery);
+		while (res->next()) {
+			cout << res->getString(1) << endl;
+		}
+		cout<<"next query"<<endl;
+		res = stmt->executeQuery(RTQuery);
 		while (res->next()) {
 			cout << res->getString(1) << endl;
 		}
 		delete res;
+
+		//cleanup connection
 		delete stmt;
 		delete con;
 	}
@@ -126,6 +150,8 @@ int run(char** filenames)
   		cout << "# ERR: " << e.what();
   		cout << " (MySQL error code: " << e.getErrorCode();
   		cout << ", SQLState: " << e.getSQLState() << " )" << endl;
+		//if (stmt) delete stmt;
+		//if (conn) delete con;
 		return 1;
 	}
 	return 0;
