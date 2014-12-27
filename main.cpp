@@ -2,17 +2,26 @@
 //			File Decoder
 //-----------------------------------
 #include <cstring> //strcmp, strtok
-#include <string>
 #include <iostream>
 #include <fstream>
-#include <stdio.h>
+#include <string>
+#include <vector>
+#include <algorithm> //find
+
+//mysql includes
+#include <mysql_connection.h>
+#include "mysql_driver.h"
+#include <cppconn/driver.h>
+#include <cppconn/exception.h>
+#include <cppconn/resultset.h>
+#include <cppconn/statement.h>
 
 //timing
 #include <time.h>
 
 using namespace std;
 
-const int NUM_FILES = 2; //for now raw hits and settings file
+const int NUM_FILES = 2; //raw_hits, settings
 const int NUM_PARAMS = 1 + 2 * NUM_FILES;
  
 char* find(char** files, const char* flag)
@@ -34,65 +43,91 @@ int run(char** filenames)
 	
 	if (rawHitsFile == NULL)
 	{
-		//cerr << "Missing -h RAW_HITS_FILE" << endl;
+		cerr<<"Missing -h RAW_HITS_FILE"<<endl;;
 		return 1;
 	}
 	if (settingsFile == NULL)
 	{
-		//cerr << "Missing -s SETTINGS_FILE" << endl;
+		cerr<<"Missing -s SETTINGS_FILE"<<endl;
 		return 1;
 	}
-	//cout << basename(rawHitsFile) << endl;	
-	clock_t t = clock();
 	
-	//stdio
-	//iostream
-	ifstream reader(rawHitsFile);
-	ofstream outF("hello2.txt");
-	if (reader.is_open())
-	{
-		int lineSize2 = 60;
-		char line2 [lineSize2];
-		while (reader.getline(line2,lineSize2))
-		{
-			outF << line2;
-			outF << line2;
-			/*outF.write("\n",1);
-			outF.write(line2,lineSize2);
-			outF.write("\n",1);*/
-		}
-		reader.close();
-		outF.close();
-	}
-	else
-	{
-		cerr<< "error" << endl;
-		return 1;
-	}
-	t = clock() - t;
-	cout << "It took me " << ((float)t)/CLOCKS_PER_SEC << " seconds to run." << endl;
-	
-	t = clock();
-	FILE * fHits;
-	FILE * outFile;
-	fHits = fopen(rawHitsFile, "r");
-	outFile = fopen(settingsFile, "w");
-	int lineSize = 60;
-	char line [lineSize];
-	if (fHits == NULL) perror("Error opening hits file");
-	else
-	{
-		while(fgets(line, lineSize, fHits) != NULL)
-		{
-			fputs(line, outFile);
-			fputs(line, outFile);
-		}
-		fclose(fHits);
-		fclose(outFile);
-	}
-	t = clock() - t;
-	cout << "It took me " << ((float)t)/CLOCKS_PER_SEC << " seconds to run." << endl;
+	//information from filename
+	//include error catch?
+	char* baseFileName = basename(rawHitsFile);
+	int runID = atoi(strtok(baseFileName,"+"));
+	int eventID = atoi(strtok(NULL,"+"));
+	char * server = strtok(NULL,"+");
+	char * schema = strtok(NULL,"+");
+	char * type = strtok(NULL,".");	
 
+	//information from settings
+	vector<string> settingName = {"user", "password", "HODOMASK", "RT", "CHAMBERINFO", "HODOINFO", "TRIGGERROADS", "TRIGGERINFO", "SCALERINFO"};
+	vector<string> settingValue;
+	ifstream setReader(settingsFile);
+	if (setReader.is_open())
+	{
+		string line;
+		for (auto it = settingName.begin(); it != settingName.end(); ++it)
+		{
+			if (getline(setReader,line))
+			{
+				settingValue.push_back(line);
+			}
+			else
+			{
+				cerr<<"Missing setting "<<*it<<endl;
+				setReader.close();
+				return 1;
+			}
+		}
+		setReader.close();
+	}
+	else
+	{
+		cerr<<"Error opening settings file."<<endl;
+		return 1;
+	}
+	const char* user = settingValue[find(settingName.begin(), settingName.end(), "user") - settingName.begin()].data();
+	const char* password = settingValue[find(settingName.begin(), settingName.end(), "password") - settingName.begin()].data();
+	
+	//queries	
+	const char* hodoMaskQuery = settingValue[find(settingName.begin(), settingName.end(), "HODOMASK") - settingName.begin()].data();
+	const char* RTQuery = settingValue[find(settingName.begin(), settingName.end(), "RT") - settingName.begin()].data();
+	const char* chamberInfoQuery = settingValue[find(settingName.begin(), settingName.end(), "CHAMBERINFO") - settingName.begin()].data();
+	const char* hodoInfoQuery = settingValue[find(settingName.begin(), settingName.end(), "HODOINFO") - settingName.begin()].data();
+	const char* triggerRoadsQuery = settingValue[find(settingName.begin(), settingName.end(), "TRIGGERROADS") - settingName.begin()].data();
+	const char* triggerInfoQuery = settingValue[find(settingName.begin(), settingName.end(), "TRIGGERINFO") - settingName.begin()].data();
+	const char* scalerInfoQuery = settingValue[find(settingName.begin(), settingName.end(), "SCALERINFO") - settingName.begin()].data();
+
+	try
+	{
+		sql::Driver *driver;
+		sql::Connection *con;
+	    sql::Statement *stmt;
+		sql::ResultSet *res;
+		/* Create a connection */
+		driver = get_driver_instance();
+		con = driver->connect(server, user, password);
+		con->setSchema(schema);
+		stmt = con->createStatement();
+		res = stmt->executeQuery("SELECT * FROM RT");
+		while (res->next()) {
+			cout << res->getString(1) << endl;
+		}
+		delete res;
+		delete stmt;
+		delete con;
+	}
+	catch (sql::SQLException &e) 
+	{
+	    cout << "# ERR: SQLException in " << __FILE__;
+  		cout << "(" << __FUNCTION__ << ") on line " << __LINE__ << endl;
+  		cout << "# ERR: " << e.what();
+  		cout << " (MySQL error code: " << e.getErrorCode();
+  		cout << ", SQLState: " << e.getSQLState() << " )" << endl;
+		return 1;
+	}
 	return 0;
 }
 
@@ -100,7 +135,7 @@ int main(int argc, char** argv)
 {
 	if (argc != NUM_PARAMS) 
 	{ 
-		//cerr << "Usage: " << argv[0] << " -h RAW_HITS_FILE -s SETTINGS_FILE"  << endl;
+		cerr<<"Usage: "<<argv[0]<<" -h RAW_HITS_FILE -s SETTINGS_FILE"<<endl; 
 		return 1;
 	}
 	else
@@ -108,3 +143,8 @@ int main(int argc, char** argv)
 		return run(argv);
 	}
 }
+/*	
+	clock_t t = clock();
+	t = clock() - t;
+	printf("It took me %f seconds to run.\n",((float)t)/CLOCKS_PER_SEC);
+	*/
