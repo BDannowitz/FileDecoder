@@ -1,38 +1,30 @@
-#include "Decoder.h"
-#include <iostream>
-#include <fstream>
-#include <sstream> 
-#include <stdlib.h>
-#include <cmath> 
-#include <math.h> //round
-#include <algorithm> //find
-#include <list>
+#include "Uploader.h"
 
-Decoder::Decoder()
+Uploader::Uploader()
 {
-	hcMap = nullptr;
-	rMap = nullptr;
-	mMap = nullptr;
-	B4 = nullptr;
-	T4 = nullptr;
+	HIC_Map = new unordered_map<unsigned long, vector<string>>;
+	RT_Map = new unordered_map<string, vector<string>>;
+	HM_Map = new unordered_map< string, forward_list< tuple< string, int, int>>>;  
+	B4 = new vector< tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>*>>;
+	T4 = new vector< tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>*>>;
 }
 
-Decoder::~Decoder()
+Uploader::~Uploader()
 {
-	if (hcMap != nullptr)
+	if (HIC_Map != nullptr)
 	{
-		delete hcMap; 
-		hcMap = nullptr;
+		delete HIC_Map; 
+		HIC_Map = nullptr;
 	}
-	if (rMap != nullptr)
+	if (RT_Map != nullptr)
 	{
-		delete rMap;
-		rMap = nullptr;
+		delete RT_Map;
+		RT_Map = nullptr;
 	}
-	if (mMap != nullptr)
+	if (HM_Map != nullptr)
 	{
-		delete mMap;
-		mMap = nullptr;
+		delete HM_Map;
+		HM_Map = nullptr;
 	}
 	if (B4 != nullptr)
 	{
@@ -48,7 +40,7 @@ Decoder::~Decoder()
 	}
 }
 
-string Decoder::toString(vector<string> input)
+string Uploader::toString(vector<string> input)
 {
 	string output = "\n";
 	for (vector<string>::iterator it = input.begin(); it != --input.end(); ++it)
@@ -59,11 +51,12 @@ string Decoder::toString(vector<string> input)
 	return output;
 }
 
-unsigned long Decoder::hcHashFunction(string a, string b, string c)
+//update to bitset<12>
+unsigned long HIC_HF(string a, string b, string c)
 {
-	unsigned short d = atoi(a.data());
-	unsigned short e = atoi(b.data());
-	unsigned short f = atoi(c.data());
+	unsigned short d = atoi(a);
+	unsigned short e = atoi(b);
+	unsigned short f = atoi(c);
 	unsigned long out = d;
 	out <<= 16;
 	out |= e;
@@ -72,408 +65,283 @@ unsigned long Decoder::hcHashFunction(string a, string b, string c)
 	return out;
 }
 
-string Decoder::rHashFunction(string a, string b)
+string Uploader::rHashFunction(string a, string b)
 {
 	return (a + "_" + b); 
 }
 
-string Decoder::mHashFunction(string a, string b)
+string Uploader::mHashFunction(string a, string b)
 {
 	return (a.substr(0,3) + "_" + b); //possibly chop off first H
 }
 
-//app 0 -> hodo mapping
-//app 1 -> chamber mapping
-//app 2 -> rt mapping
-//app 3 -> hodomask
-int Decoder::_init(char* mapping, int app)
+//app_name app_number
+//===================
+//HODO_INFO	    0
+//CHAMBER_INFO  1
+//RT		    2
+//HODOMASK	    3
+//TRIGGER_ROADS	4
+//TRIGGER_INFO	5
+//SCALER_INFO	6
+
+int Uploader::initialize(ResultSet *res, int app)
 {
-	ifstream reader(mapping);
-	if (reader.is_open())
+	//expected header information
+	vector<string> headerFields;
+	if (app == 0)
 	{
-		string line; //used to get line
-		int size; //used to loop lines quickly
-		//expected header information
-		vector<string> headerFields;
-		if (app == 0)
-		{
-			headerFields = {"rocID", "boardID", "channelID", "detectorName", "elementID", "tPeak", "width"};
-		}
-		else if (app == 1)
-		{
-			headerFields = {"rocID", "boardID", "channelID", "detectorName", "elementID", "t0", "offset", "width"};
-		}
-		else if (app == 2)
-		{
-			headerFields = {"detectorName", "driftTime", "driftDistance", "resolution"};
-		}
-		else if (app == 3)
-		{
-			headerFields = {"hodo", "wireDetectorName", "minwire", "maxwire"};
-		}
-		else if (app == 4)
-		{
-			headerFields = {"roadID", "detectorHalf", "H1", "H2", "H3", "H4"};
-		}
-		else
-		{
-			cerr << "Internal error" << endl;
-			return 1;
-		}
-		int headerSize = headerFields.size();
-		int header[headerSize]; 
-		for (int i = 0; i < headerSize; i++)
-		{
-			header[i] = -1;
-		}
-
-		//open hodo mapping file
-		//first line header info
-		if (getline(reader, line))
-		{
-			string word;
-			int wordIndex = 0;
-			stringstream ss(line);
-			while (getline(ss, word, DELIMITER))
-			{
-				vector<string>::iterator it = find(headerFields.begin(), headerFields.end(), word);
-				if (it != headerFields.end())
-				{
-					header[it-headerFields.begin()] = wordIndex;
-				}
-				wordIndex++;
-			}
-			size = wordIndex;
-
-			//check if found all by finding if -1 exists in header
-			for (int i = 0; i < headerSize; i++)
-			{
-				if (header[i] == -1) {
-					cerr << "Missing some mapping field(s) from " << mapping << endl;
-					reader.close();
-					return 1;
-				}
-			}
-		}
-		else
-		{
-			cerr << "Empty mapping file " << mapping << endl;
-			reader.close();
-			return 1;
-		}
-
-		//load hcMap with hodo mapping
-		if (~(reader.eof())) 
-		{
-			string wordBuffer[size];
-
-			//hodomask helpers
-			string prevHodo = ""; 
-			forward_list< tuple< string, int, int>> block;
-
-			//loop thru mapping info
-			while (getline(reader, line))
-			{
-				//two objects used to place words into wordBuffer
-				string word;
-				int wordIndex = 0;
-
-				//loop thru line
-				stringstream ss(line);
-				while (getline(ss, word, DELIMITER))
-				{
-					if (wordIndex >= size) 
-					{
-						wordIndex = -1; //wont process line because too many entries, doesn't follow header pattern
-						break; 		
-					}
-					wordBuffer[wordIndex] = word;
-					wordIndex++;
-				}
-				if (wordIndex == size)
-				{
-					//get last hodo
-					if (app == 0 || app == 1)
-					{
-						unsigned long key = hcHashFunction(wordBuffer[header[0]], wordBuffer[header[1]], wordBuffer[header[2]]);
-						vector<string> value; 
-						if (app == 0)
-						{
-							value = {to_string(app), wordBuffer[header[3]], wordBuffer[header[4]], wordBuffer[header[5]], wordBuffer[header[6]]};
-						}
-						else if (app == 1) 
-						{
-							value = {to_string(app), wordBuffer[header[3]], wordBuffer[header[4]], wordBuffer[header[5]], wordBuffer[header[6]], wordBuffer[header[7]]};
-						}
-						(*hcMap)[key] = value;
-					}
-					else if (app == 2)
-					{
-						string key = rHashFunction(wordBuffer[header[0]], wordBuffer[header[1]]);
-						vector<string> value = {wordBuffer[header[2]],wordBuffer[header[3]]};
-						(*rMap)[key] = value;
-					}
-					else if (app == 3)
-					{
-						//hodomask
-						string curHodo = wordBuffer[header[0]];
-						if (prevHodo == curHodo)
-						{
-							block.emplace_front(wordBuffer[header[1]], atoi(wordBuffer[header[2]].data()), atoi(wordBuffer[header[3]].data()));
-						}
-						else
-						{
-							if (!block.empty())
-							{
-								(*mMap)[prevHodo] = block;
-								prevHodo = curHodo;
-								block.clear();
-							}
-							prevHodo = curHodo;
-							block.emplace_front(wordBuffer[header[1]], atoi(wordBuffer[header[2]].data()), atoi(wordBuffer[header[3]].data()));
-						}
-
-					}
-					else if (app == 4)
-					{
-						//triggerRoads mapping
-						string roadID = wordBuffer[header[0]];
-						string detectorHalf = wordBuffer[header[1]];
-						int H1 = atoi(wordBuffer[header[2]].data());
-						int H2 = atoi(wordBuffer[header[3]].data());
-						int H3 = atoi(wordBuffer[header[4]].data());
-						int H4 = atoi(wordBuffer[header[5]].data());
-
-						vector< tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int, string>>* >>* >>* >> mapping; //should this be a pointer for optimize?
-						if (detectorHalf == "B")
-						{
-							mapping = (*B4);
-						}
-						else
-						{
-							mapping = (*T4);
-						}
-						bool foundH4 = false;
-						tuple<int, string> H1Val = make_tuple(H1, roadID); 
-						for (auto it = mapping.begin(); it != mapping.end(); ++it)
-						{
-							if (get<0>(*it) == H4)
-							{
-								foundH4 = true;
-								bool foundH3 = false;
-								auto h3s = get<1>(*it);
-								for (auto itt = h3s->begin(); itt != h3s->end(); ++itt)
-								{
-									if (get<0>(*itt) == H3)
-									{
-										foundH3 = true;
-										bool foundH2 = false;
-										auto h2s = get<1>(*itt);
-										for (auto ittt = h2s->begin(); ittt != h2s->end(); ++ittt)
-										{
-											if (get<0>(*ittt) == H2)
-											{
-												foundH2 = true;
-												get<1>(*ittt)->push_back(H1Val);
-												break;
-											}
-										}
-										if (!foundH2)
-										{
-											vector< tuple<int,string>>* VecH1Val = new vector< tuple<int,string>>; //combine
-											VecH1Val->push_back(H1Val);
-											tuple<int,vector< tuple<int,string>>*> H2H1Val = make_tuple(H2, VecH1Val);
-											h2s->push_back(H2H1Val);
-										}
-										break;
-									}
-								}
-								if (!foundH3)
-								{
-									vector< tuple<int,string>>* VecH1Val = new vector< tuple<int,string>>; //combine
-									VecH1Val->push_back(H1Val);
-									tuple<int,vector< tuple<int,string>>*> H2H1Val = make_tuple(H2, VecH1Val);
-									vector< tuple<int,vector< tuple<int,string>>*>>* VecH2H1Val = new vector< tuple<int,vector< tuple<int,string>>* >>;
-									VecH2H1Val->push_back(H2H1Val);
-									tuple< int,vector< tuple<int,vector< tuple<int,string>>*>>*> H3H2H1Val = make_tuple(H3, VecH2H1Val);
-									h3s->push_back(H3H2H1Val);
-								}
-								break;
-							}
-						}
-						if (!foundH4)
-						{
-							vector< tuple<int,string>>* VecH1Val = new vector< tuple<int,string>>; //combine
-							VecH1Val->push_back(H1Val);
-							tuple<int,vector< tuple<int,string>>*> H2H1Val = make_tuple(H2, VecH1Val);
-							vector< tuple<int,vector< tuple<int,string>>*>>* VecH2H1Val = new vector< tuple<int,vector< tuple<int,string>>* >>;
-							VecH2H1Val->push_back(H2H1Val);
-							tuple< int,vector< tuple<int,vector< tuple<int,string>>*>>*> H3H2H1Val = make_tuple(H3, VecH2H1Val);
-							
-							vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>* VecH3H2H1Val = new vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>;
-							VecH3H2H1Val->push_back(H3H2H1Val);
-							tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>*> H4H3H2H1Val = make_tuple(H4, VecH3H2H1Val);
-							mapping.push_back(H4H3H2H1Val);
-						}
-						if (detectorHalf == "B")
-						{
-							(*B4) = mapping;
-						}
-						else
-						{
-							(*T4) = mapping;
-						}
-					}
-				}
-			}
-			if (app == 3)
-			{
-				//get last hodo
-				(*mMap)[prevHodo] = block;
-			}
-		}
-		else
-		{
-			cerr << "No mapping information from " << mapping << endl;
-			reader.close();
-			return 1;
-		}
+		headerFields = {"rocID", "boardID", "channelID", "detectorName", "elementID", "tPeak", "width"};
+	}
+	else if (app == 1)
+	{
+		headerFields = {"rocID", "boardID", "channelID", "detectorName", "elementID", "t0", "offset", "width"};
+	}
+	else if (app == 2)
+	{
+		headerFields = {"detectorName", "driftTime", "driftDistance", "resolution"};
+	}
+	else if (app == 3)
+	{
+		headerFields = {"hodo", "wireDetectorName", "minwire", "maxwire"};
+	}
+	else if (app == 4)
+	{
+		headerFields = {"roadID", "detectorHalf", "H1", "H2", "H3", "H4"};
+	}
+	else if (app == 5)
+	{
+		headerFields = {"detectorName", "elementID","triggerLevel", "rocID", "boardID", "channelID", "tPeak","width"};
+	}
+	else if (app == 6)
+	{
+		headerFields = {"scalerName", "rocID", "boardID", "channelID"};
 	}
 	else
 	{
-		cerr << "Error opening mapping file " << mapping << endl;
+		cerr << "Internal error" << endl;
 		return 1;
 	}
-	if (app == 4)
+
+	vector<int> index;
+	for (auto it = headerFields.begin(); it != headerFields.end(); ++it)
 	{
-		/*//print trigger mapping
-		cout<< sizeof(*B4) <<endl;
-		cout<< sizeof(*T4) <<endl;
-		cout<<"B list"<<endl;
-		for (auto it = B4->begin(); it != B4->end(); ++it)
+		index.push_back(res->findColumn(*it)); //throws mysql exception if fails
+		/*
+			if (header[i] == -1) {
+				cerr << "Missing some mapping field(s) from " << mapping << endl;
+				reader.close();
+				return 1;
+			}
+			*/
+	}
+
+	//hodomask helpers
+	string prevHodo = ""; 
+	forward_list< tuple< string, int, int>> block;
+
+	while (res->next())
+	{
+		if (app == 0 || app == 1)
 		{
-			if (get<0>(*it) == 3){
-			cout<<"H4: "<<get<0>(*it);
-			auto h3s = get<1>(*it);
-			for (auto itt = h3s->begin(); itt != h3s->end(); ++itt)
+			unsigned long key = hcHashFunction(ref->getString(index[0]), ref->getString(index[1]), ref->getString(index[2]));
+			vector<string> value; 
+			if (app == 0)
 			{
-				cout<<"    H3: "<<get<0>(*itt);
-				auto h2s = get<1>(*itt);
-					for (auto ittt = h2s->begin(); ittt != h2s->end(); ++ittt)
-					{
-						cout<<"    H2: "<<get<0>(*ittt);
-						auto h1s = get<1>(*ittt);
-						for (auto itttt = h1s->begin(); itttt != h1s->end(); ++itttt)
-						{
-							cout<<"    H1: "<<(get<0>(*itttt))<< " VALUE: " << (get<1>(*itttt))<<endl;
-						}
-					}
-			}}
+				value = {to_string(app), ref->getString(index[3]), ref->getString(index[4]), ref->getString(index[5]), ref->getString(index[6])};
+			}
+			else if (app == 1) 
+			{
+				value = {to_string(app), ref->getString(index[3]), ref->getString(index[4]), ref->getString(index[5]), ref->getString(index[6]), ref->getString(index[7])};
+			}
+			(*HIC_Map)[key] = value;
 		}
-		cout<<"T list"<<endl;
-		for (auto it = T4->begin(); it != T4->end(); ++it)
+		else if (app == 2)
 		{
-			cout<<"H4: "<<get<0>(*it);
-			auto h3s = get<1>(*it);
-			for (auto itt = h3s->begin(); itt != h3s->end(); ++itt)
+			string key = rHashFunction(ref->getString(index[0]), ref->getString(index[1]));
+			vector<string> value = {ref->getString(index[2]),ref->getString(index[3])};
+			(*RT_Map)[key] = value;
+		}
+		else if (app == 3)
+		{
+			//hodomask
+			string curHodo = ref->getString(index[0]);
+			if (prevHodo == curHodo)
 			{
-				cout<<"    H3: "<<get<0>(*itt);
-				auto h2s = get<1>(*itt);
-					for (auto ittt = h2s->begin(); ittt != h2s->end(); ++ittt)
-					{
-						cout<<"    H2: "<<get<0>(*ittt);
-						auto h1s = get<1>(*ittt);
-						for (auto itttt = h1s->begin(); itttt != h1s->end(); ++itttt)
-						{
-							cout<<"    H1: "<<(get<0>(*itttt))<< " VALUE: " << (get<1>(*itttt))<<endl;
-						}
-					}
+				block.emplace_front(ref->getString(index[1]), ref->getInt(index[2]), ref->getInt(index[3]));
+			}
+			else
+			{
+				if (!block.empty())
+				{
+					(*HM_Map)[prevHodo] = block;
+					prevHodo = curHodo;
+					block.clear();
+				}
+				prevHodo = curHodo;
+				block.emplace_front(ref->getString(index[1]), ref->getInt(index[2]), ref->getInt(index[3]));
 			}
 		}
-		*///end print
+		else if (app == 4)
+		{
+			//triggerRoads mapping
+			string roadID = ref->getString(index[0]);
+			string detectorHalf = ref->getString(index[1]);
+			int H1 = ref->getInt(index[2]);
+			int H2 = ref->getInt(index[3]);
+			int H3 = ref->getInt(index[4]);
+			int H4 = ref->getInt(index[5]);
+
+			vector< tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int, string>>* >>* >>* >> mapping; //should this be a pointer for optimize?
+			if (detectorHalf == "B")
+			{
+				mapping = (*B4);
+			}
+			else
+			{
+				mapping = (*T4);
+			}
+			bool foundH4 = false;
+			tuple<int, string> H1Val = make_tuple(H1, roadID); 
+			for (auto it = mapping.begin(); it != mapping.end(); ++it)
+			{
+				if (get<0>(*it) == H4)
+				{
+					foundH4 = true;
+					bool foundH3 = false;
+					auto h3s = get<1>(*it);
+					for (auto itt = h3s->begin(); itt != h3s->end(); ++itt)
+					{
+						if (get<0>(*itt) == H3)
+						{
+							foundH3 = true;
+							bool foundH2 = false;
+							auto h2s = get<1>(*itt);
+							for (auto ittt = h2s->begin(); ittt != h2s->end(); ++ittt)
+							{
+								if (get<0>(*ittt) == H2)
+								{
+									foundH2 = true;
+									get<1>(*ittt)->push_back(H1Val);
+									break;
+								}
+							}
+							if (!foundH2)
+							{
+								vector< tuple<int,string>>* VecH1Val = new vector< tuple<int,string>>; //combine
+								VecH1Val->push_back(H1Val);
+								tuple<int,vector< tuple<int,string>>*> H2H1Val = make_tuple(H2, VecH1Val);
+								h2s->push_back(H2H1Val);
+							}
+							break;
+						}
+					}
+					if (!foundH3)
+					{
+						vector< tuple<int,string>>* VecH1Val = new vector< tuple<int,string>>; //combine
+						VecH1Val->push_back(H1Val);
+						tuple<int,vector< tuple<int,string>>*> H2H1Val = make_tuple(H2, VecH1Val);
+						vector< tuple<int,vector< tuple<int,string>>*>>* VecH2H1Val = new vector< tuple<int,vector< tuple<int,string>>* >>;
+						VecH2H1Val->push_back(H2H1Val);
+						tuple< int,vector< tuple<int,vector< tuple<int,string>>*>>*> H3H2H1Val = make_tuple(H3, VecH2H1Val);
+						h3s->push_back(H3H2H1Val);
+					}
+					break;
+				}
+			}
+			if (!foundH4)
+			{
+				vector< tuple<int,string>>* VecH1Val = new vector< tuple<int,string>>; //combine
+				VecH1Val->push_back(H1Val);
+				tuple<int,vector< tuple<int,string>>*> H2H1Val = make_tuple(H2, VecH1Val);
+				vector< tuple<int,vector< tuple<int,string>>*>>* VecH2H1Val = new vector< tuple<int,vector< tuple<int,string>>* >>;
+				VecH2H1Val->push_back(H2H1Val);
+				tuple< int,vector< tuple<int,vector< tuple<int,string>>*>>*> H3H2H1Val = make_tuple(H3, VecH2H1Val);
+				
+				vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>* VecH3H2H1Val = new vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>;
+				VecH3H2H1Val->push_back(H3H2H1Val);
+				tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>*> H4H3H2H1Val = make_tuple(H4, VecH3H2H1Val);
+				mapping.push_back(H4H3H2H1Val);
+			}
+			if (detectorHalf == "B")
+			{
+				(*B4) = mapping;
+			}
+			else
+			{
+				(*T4) = mapping;
+			}
+		}
+		else if (app == 5)
+		{
+
+		}
+		else if (app == 6)
+		{
+
+		}
 	}
-	reader.close();
+	if (app == 3)
+	{
+		//get last hodo
+		(*HM_Map)[prevHodo] = block;
+	}
 	return 0;
 }
 
-int Decoder::initialize(char* hodoMapping, char* chamberMapping, char* rtMapping, char* hodoMask, char* triggerRoads)
+int Uploader::decode(char* rawFile, string server, string schema, int eventID, string type, Statement *stmt)
 {
-	hcMap = new unordered_map<unsigned long, vector<string>>;
-	rMap = new unordered_map<string, vector<string>>;
-	mMap = new unordered_map< string, forward_list< tuple< string, int, int>>>;  
-	B4 = new vector< tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>*>>;
-	T4 = new vector< tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>*>>;
-	if (_init(hodoMapping, 0) || _init(chamberMapping, 1) || _init(rtMapping, 2) || _init(hodoMask, 3) || _init(triggerRoads, 4))
+	string temp1 = "hits-"+server+"-"+schema+".out";
+	string temp2 = "triggerHits-"+server+"-"+schema+".out";
+	string temp3 = "triggerRoads-"+server+"-"+schema+".out";
+	char* hitsFileName = temp1.data();
+	char* triggerHitsFileName = temp2.data();
+	char* triggerRoadsFileName = temp3.data();
+
+	vector<string> headerFields;
+	vector<string> writeFields;
+	if (strcmp(type,"scaler")==0)
 	{
-		cerr << "Error initializing" << endl;
+		headerFields = {"rocID", "boardID", "channelID", "hitID", "spillID", "eventID", "tdcTime"};
+		writeFields = {};
+	}
+	else if (strcmp(type,"tdc")==0)
+	{
+		headerFields = {"scalerID","spillID", "spillType", "rocID", "boardID", "channelID", "scalerName", "value", "dataQuality"};
+		writeFields = {};
+	}
+	else
+	{
+		cerr<<"Type error for type = "<<type<<endl;
 		return 1;
 	}
-	return 0;
-}	
 
-int Decoder::decode(char* hitsFile, char* hodoWriteFile, char* triggerWriteFile)
-{
-	vector<string> headerFields = {"rocID", "boardID", "channelID", "hitID", "spillID", "eventID", "tdcTime"};
+	updateTable(stmt, eventID, type, -1);
+
 	int headerSize = headerFields.size();
 	int header[headerSize]; 
-	for (int i = 0; i < headerSize; i++)
-	{
-		header[i] = -1;
-	}
 		
 	//open file to read from
-	ifstream reader(hitsFile);
+	ifstream reader(rawFile);
 
 	//check if file opened correctly
 	if (reader.is_open())
 	{
-		//number of entries to size array efficently
-		int size;
-		string line;
-		if (getline(reader, line))
-		{
-			string word;
-			int wordIndex = 0;
-			stringstream ss(line);
-			while (getline(ss, word, DELIMITER))
-			{
-				vector<string>::iterator it = find(headerFields.begin(), headerFields.end(), word);
-				if (it != headerFields.end())
-				{
-					header[it-headerFields.begin()] = wordIndex;
-				}
-				wordIndex++;
-			}
-			size = wordIndex;
-			
-			for (int i = 0; i < headerSize; i++)
-			{
-				if (header[i] == -1) {
-					cerr << "Missing some hit field(s)" << endl;
-					reader.close();
-					return 1;
-				}
-			}
-		}
-		else
-		{
-			cerr << "Empty hit file" << endl;
-			reader.close();
-			return 1;
-		}
-
+		//missing hits file
+		//empyt hit file?
+		//error checks
 		if (~(reader.eof())) 
 		{
 			//open connection to writeFiles
 			ofstream hodoOutFile(hodoWriteFile);
 			ofstream triggerOutFile(triggerWriteFile);
 			
-			string hodoHeaderString = "hitID\tspillID\teventID\trocID\tboardID\tchannelID\tdetectorName\telementID\ttdcTime\tinTime\tdriftTime\tdriftDistance\tresolution\tmasked";
-			hodoOutFile.write(hodoHeaderString.data(),hodoHeaderString.size());
-			string triggerHeaderString = "eventID\troadID";
-			triggerOutFile.write(triggerHeaderString.data(),triggerHeaderString.size());
+			string hodoHeaderstring = "hitID\tspillID\teventID\trocID\tboardID\tchannelID\tdetectorName\telementID\ttdcTime\tinTime\tdriftTime\tdriftDistance\tresolution\tmasked";
+			hodoOutFile.write(hodoHeaderstring.data(),hodoHeaderstring.size());
+			string triggerHeaderstring = "eventID\troadID";
+			triggerOutFile.write(triggerHeaderstring.data(),triggerHeaderstring.size());
 			
-			string wordBuffer[size]; 
+			string wordBuffer[headerSize]; 
 			string prevEvent = ""; 
 			bool first = true;
 			list<vector<string>> storage;
@@ -489,6 +357,7 @@ int Decoder::decode(char* hitsFile, char* hodoWriteFile, char* triggerWriteFile)
 			}
 
 			//loop thru hits by event block
+			string line;
 			while (getline(reader, line))
 			{
 				// -----lineInfo(OUTPUT)------	
@@ -541,7 +410,7 @@ int Decoder::decode(char* hitsFile, char* hodoWriteFile, char* triggerWriteFile)
 					wordBuffer[wordIndex] = word;
 					wordIndex++;
 				}
-				vector<string> hashData = (*hcMap)[hcHashFunction(wordBuffer[header[0]], wordBuffer[header[1]], wordBuffer[header[2]])];  
+				vector<string> hashData = (*HIC_Map)[hcHashFunction(wordBuffer[header[0]], wordBuffer[header[1]], wordBuffer[header[2]])];  
 
 				if (hashData.empty())
 				{
@@ -691,7 +560,7 @@ int Decoder::decode(char* hitsFile, char* hodoWriteFile, char* triggerWriteFile)
 						{
 							pCheck = pCheck.substr(0,3);
 						}
-						vector<string> rtData = (*rMap)[(pCheck + "_" + driftTime)]; //didn't use rHashFunction because already truncated driftTime
+						vector<string> rtData = (*RT_Map)[(pCheck + "_" + driftTime)]; //didn't use rHashFunction because already truncated driftTime
 						if (rtData.size() == 0) //didn't find anything
 						{
 							lineInfo.insert(lineInfo.end(), 2, "NULL");
@@ -1082,33 +951,42 @@ int Decoder::decode(char* hitsFile, char* hodoWriteFile, char* triggerWriteFile)
 		}
 		else
 		{
-			cerr << "No hit information" << endl;
+			cerr << "Empty file at "<< hitsFile << endl;
 			reader.close();
 			return 1;
 		}
 	}
 	else
 	{
-		cerr << "Error opening hits file" << endl;
+		cerr << "Error opening " << hitsFile << endl;
 		return 1;
 	}
 	reader.close();
+	updateTable(stmt, eventID, type, -1);
 	return 0;
 }
 
-forward_list< tuple< string, int, int>> Decoder::compileHodo(forward_list< string> H1s)
+forward_list< tuple< string, int, int>> Uploader::compileHodo(forward_list< string> H1s)
 {
 	//H1s, forward list with all Hodoscope detectors with inTime = 1 for a given event
-	//use mMap to decode 
+	//use HM_Map to decode 
 	forward_list< tuple< string, int, int>> maskedDs;
 	for (auto it = H1s.begin(); it != H1s.end(); ++it)
 	{
 		//eventually make more complex
-		auto tempL = (*mMap)[*it];
+		auto tempL = (*HM_Map)[*it];
 		for (auto itT = tempL.begin(); itT != tempL.end(); ++itT)
 		{
 			maskedDs.push_front(*itT); 
 		}
 	}
 	return maskedDs;
+}
+
+void Uploader::updateTable(Statement *stmt, int eventID, string type, int num)
+{
+	string query = "UPDATE decoderInfo SET status=" + num + ", status_history=CONCAT_WS(' ',status_history,'"+ num + "') WHERE codaEventID="+ eventID + " AND type='" + type + "'";
+	//need to_string?
+	cout<<query<<endl;
+	stmt->executeQuery(query);
 }

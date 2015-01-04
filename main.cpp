@@ -1,9 +1,10 @@
 //-----------------------------------
 //			File Decoder
 //-----------------------------------
-#include <cstring> //strcmp, strtok
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <cstring> //strcmp, strtok
 #include <string>
 #include <vector>
 #include <algorithm> //find
@@ -19,15 +20,16 @@
 #include <time.h>
 
 using namespace std;
+using namespace sql;
 
 const int NUM_FILES = 2; //raw_hits, settings
 const int NUM_PARAMS = 1 + 2 * NUM_FILES;
  
-char* find(char** files, const char* flag)
+char* find(char** files, string flag)
 {
 	for (int i = 1; i < NUM_PARAMS-1; i++)
 	{
-		if (strcmp(files[i],flag)==0)
+		if (strcmp(files[i],flag.data())==0)
 		{
 			return files[i+1];
 		}
@@ -35,9 +37,15 @@ char* find(char** files, const char* flag)
 	return NULL;
 }
 
+//delete_if_all cleanup
+//{
+//}
+
 int run(char** filenames)
 {
 	char* rawHitsFile = find(filenames, "-h");
+	char* rhf;
+	strcpy(rhf,rawHitsFile); 
 	char* settingsFile = find(filenames, "-s");
 	
 	if (rawHitsFile == NULL)
@@ -56,20 +64,33 @@ int run(char** filenames)
 	char* baseFileName = basename(rawHitsFile);
 	int runID = atoi(strtok(baseFileName,"+"));
 	int eventID = atoi(strtok(NULL,"+"));
-	char * server = strtok(NULL,"+");
-	server = "e906-db3.fnal.gov";//TESTING
+	string server = strtok(NULL,"+");
+	//server = "e906-db3.fnal.gov";//TESTING
 	int port = 3306;
-	if (strcmp(server,"seaquel.physics.illinois.edu")==0)
+	if (server == "seaquel.physics.illinois.edu")
 	{
 		port = 3283;
 	}
-	char * schema = strtok(NULL,"+");
-	schema = "user_mariusz_dev"; //TESTING
-	char * type = strtok(NULL,".");	
+	string schema = strtok(NULL,"+");
+	//schema = "user_mariusz_dev"; //TESTING
+	string type = strtok(NULL,".");	
+	
 
 	//information from settings
+	//FORMAT
+	//1 user
+	//2 password
+	//3 HODOINFO
+	//4 CHAMBERINFO
+	//5 RT
+	//6 HODOMASK
+	//7 TRIGGERROADS
+	//8 TRIGGERINFO
+	//9 SCALERINFO
 	vector<string> settingName = {"user", "password", "HODOMASK", "RT", "CHAMBERINFO", "HODOINFO", "TRIGGERROADS", "TRIGGERINFO", "SCALERINFO"};
-	vector<string> settingValue;
+	vector<string> queryString;
+	string user;
+	string password;
 	ifstream setReader(settingsFile);
 	if (setReader.is_open())
 	{
@@ -78,7 +99,18 @@ int run(char** filenames)
 		{
 			if (getline(setReader,line))
 			{
-				settingValue.push_back(line);
+				if (*it == "user")
+				{
+					user = line;	
+				}
+				else if (*it == "password")
+				{
+					password = line;
+				}
+				else
+				{
+					queryString.push_back(line);
+				}
 			}
 			else
 			{
@@ -94,42 +126,26 @@ int run(char** filenames)
 		cerr<<"Error opening settings file."<<endl;
 		return 1;
 	}
-	const char* user = settingValue[find(settingName.begin(), settingName.end(), "user") - settingName.begin()].data();
-	const char* password = settingValue[find(settingName.begin(), settingName.end(), "password") - settingName.begin()].data();
-	
-	//queries	
-	const char* hodoMaskQuery = settingValue[find(settingName.begin(), settingName.end(), "HODOMASK") - settingName.begin()].data();
-	const char* RTQuery = settingValue[find(settingName.begin(), settingName.end(), "RT") - settingName.begin()].data();
-	const char* chamberInfoQuery = settingValue[find(settingName.begin(), settingName.end(), "CHAMBERINFO") - settingName.begin()].data();
-	const char* hodoInfoQuery = settingValue[find(settingName.begin(), settingName.end(), "HODOINFO") - settingName.begin()].data();
-	const char* triggerRoadsQuery = settingValue[find(settingName.begin(), settingName.end(), "TRIGGERROADS") - settingName.begin()].data();
-	const char* triggerInfoQuery = settingValue[find(settingName.begin(), settingName.end(), "TRIGGERINFO") - settingName.begin()].data();
-	const char* scalerInfoQuery = settingValue[find(settingName.begin(), settingName.end(), "SCALERINFO") - settingName.begin()].data();
+
+	//create Uploader object
+	Uploader* UP = new Uploader();
 
 	try
 	{
-		sql::Driver *driver;
-		sql::Connection *con;
-	    sql::Statement *stmt;
+		Driver *driver;
+		Connection *con;
+	    Statement *stmt;
 
-		sql::ResultSet *hodoMaskRes;
-		sql::ResultSet *RTRes;
-		sql::ResultSet *chamberInfoRes;
-		sql::ResultSet *hodoInfoRes;
-		sql::ResultSet *triggerRoadsRes;
-		sql::ResultSet *triggerInfoRes;
-		sql::ResultSet *scalerInfoRes;
-
-		/* Create a connection */
-		driver = get_driver_instance();
-		con = driver->connect(server, user, password);
-		con->setSchema(schema);
-		stmt = con->createStatement();
-
-
-		//HodoMask
-		res = stmt->executeQuery(hodoMaskQuery);
-		while (res->next()) {
+		/*ResultSet *hodoMaskRes;
+		ResultSet *RTRes;
+		ResultSet *chamberInfoRes;
+		ResultSet *hodoInfoRes;
+		ResultSet *triggerRoadsRes;
+		ResultSet *triggerInfoRes;
+		ResultSet *scalerInfoRes; 
+		vector<ResultSet*> queryResult;*/
+		
+		/*while (res->next()) {
 			cout << res->getString(1) << endl;
 		}
 		cout<<"next query"<<endl;
@@ -137,23 +153,66 @@ int run(char** filenames)
 		while (res->next()) {
 			cout << res->getString(1) << endl;
 		}
-		delete res;
+		*/
 
-		//cleanup connection
+		/* Create a connection */
+		driver = get_driver_instance();
+		con = driver->connect(server, user, password);
+		con->setSchema(schema);
+		stmt = con->createStatement();
+		
+		//int appNum = 0;
+		vector<ResultSet *> allResultSets; 
+		for (auto it = queryString.begin(); it != queryString.end(); ++it)
+		{
+			ResultSet *res = stmt->executeQuery(*it);
+			if (UP.initialize(res,allResultSets.size()))
+			{
+				cerr<<"Problem initializing app number "<<appNum<<endl;
+				//delete everything
+				return 1;	
+			}
+			allResultSets.push_back(res);
+			//appNum++;
+		}
+		
+		if (UP.decode(rhf, stmt))
+		{
+			cerr<<"Decoding hits file error"<<endl;
+			for (auto it = allResultSets.begin(); it != allResultsSets.end(); ++it)
+			{
+				delete *it;
+			}
+			return 1;	
+		}
+
+		for (auto it = allResultSets.begin(); it != allResultsSets.end(); ++it)
+		{
+			delete *it;
+		}
+
+		delete UP;
 		delete stmt;
 		delete con;
 	}
-	catch (sql::SQLException &e) 
+	catch (SQLException &e) 
 	{
 	    cout << "# ERR: SQLException in " << __FILE__;
   		cout << "(" << __FUNCTION__ << ") on line " << __LINE__ << endl;
   		cout << "# ERR: " << e.what();
   		cout << " (MySQL error code: " << e.getErrorCode();
   		cout << ", SQLState: " << e.getSQLState() << " )" << endl;
-		//if (stmt) delete stmt;
-		//if (conn) delete con;
+		for (auto it = allResultSets.begin(); it != allResultsSets.end(); ++it)
+		{
+			delete *it;
+		}
+
+		delete UP;
+		if (stmt) delete stmt;
+		if (con) delete con;
 		return 1;
 	}
+	//system("rm *.out");
 	return 0;
 }
 

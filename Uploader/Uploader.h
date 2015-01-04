@@ -12,18 +12,20 @@
 //#include <sstream> 
 #include <stdlib.h> //atoi
 #include <cmath> //absolute value could slow write explicitly <= && >=
-#include <math.h> //round
+//#include <math.h> //round, both needed?
 #include <algorithm> //find
-#include <list> //why not forward list?
+//#include <list> //why not forward list?
+#include <bitset> 
 
 //mysql includes
-#include <cppconn/driver.h>
+#include <cppconn/driver.h> //needed?
 #include <cppconn/resultset.h>
-#include <cppconn/statement.h>
-#include <cppconn/exception.h>
+#include <cppconn/statement.h> //needed?
+#include <cppconn/exception.h> //might be needed?
 
 
 using namespace std;
+using namespace sql;
 
 class Uploader 
 {
@@ -33,43 +35,45 @@ class Uploader
 
 		//app_name app_number
 		//===================
-		//HODO_INFO	    1
-		//CHAMBER_INFO  2
-		//RT		    3
-		//HODOMASK	    4
-		//TRIGGER_ROADS	5
-		//TRIGGER_INFO	6
-		//SCALER_INFO	7
-		int initialize(sql::ResultSet *ref, int app)
+		//HODO_INFO	    0
+		//CHAMBER_INFO  1
+		//RT		    2
+		//HODOMASK	    3
+		//TRIGGER_ROADS	4
+		//TRIGGER_INFO	5
+		//SCALER_INFO	6
+		int initialize(ResultSet *res, int app)
 
-		int decode(char* hitsFile, char* fileName);
+		int decode(char* rawFile, string server, string schema, int eventID, string type, Statement *stmt);
 
 	private:
 		const char DELIMITER = '\t';
 		//instead of truncating to two decimal only print to 2 decimal
 
+		void updateTable(Statement *stmt, int eventID, string type, int num); //update decoderInfo
+
 		//datastructures and methods for apps
 		//====================================
 
 		//HODOINFO and CHAMBERINFO
-		unordered_map<unsigned long, vector<char*>>* HIC_Map;  
-		unsigned long HIC_HF(char* a, char* b, char* c);
+		unordered_map<unsigned long, vector<string>>* HIC_Map;  
+		unsigned long HIC_HF(string a, string b, string c);
 
 		//RT
-		unordered_map<char*, vector<char*>>* RT_Map;  
-		char* RT_HF(char* a, char* b); 
+		unordered_map<string, vector<string>>* RT_Map;  
+		string RT_HF(string a, string b); 
 
 		//HODOMASK
-		unordered_map< char*, forward_list< tuple< char*, int, int>>>* HM_Map;  
-		char* HM_HF(char* a, char* b); //compare after H?
-		forward_list< tuple< char*, int, int>> compileInTimeHodos(forward_list< char*> inTimeHodos); //addition optimization by comparing lists further
-		//is this comparing everything? list<tuple<char* list< tuple<int, int>>> needed?
+		unordered_map< string, forward_list< tuple< string, int, int>>>* HM_Map;  
+		string HM_HF(string a, string b); //compare after H?
+		forward_list< tuple< string, int, int>> compileInTimeHodos(forward_list< string> inTimeHodos); //addition optimization by comparing lists further
+		//is this comparing everything? list<tuple<string list< tuple<int, int>>> needed?
 
 		//TRIGGER_ROAD
-		vector< tuple< int, vector< tuple< int, vector< tuple< int, vector< tuple<int, char*>>*> >*> >*> >* B4;
-		vector< tuple< int, vector< tuple< int, vector< tuple< int, vector< tuple<int, char*>>*> >*> >*> >* T4;
+		vector< tuple< int, vector< tuple< int, vector< tuple< int, vector< tuple<int, string>>*> >*> >*> >* B4;
+		vector< tuple< int, vector< tuple< int, vector< tuple< int, vector< tuple<int, string>>*> >*> >*> >* T4;
 
-		//char* _toString(vector<char*> input);
+		//string _toString(vector<string> input);
 };
 
 #endif

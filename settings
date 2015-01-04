@@ -1,13 +1,22 @@
 production
 qqbar2mu+mu-
-SELECT CONCAT_WS('_',hodoDetectorName,CAST(hodoElementID AS CHAR(5))) AS `hodo`, wireDetectorName, MIN(wireElementID) AS `minwire`, MAX(wireElementID) AS `maxwire` FROM HodoMask GROUP BY stationID, hodoDetectorName, hodoElementID, wireDetectorID, wireDetectorName ORDER BY hodoDetectorName, hodoElementID, wireDetectorName
-SELECT detectorName, TRUNCATE(driftTime,1) AS `driftTime`, driftDistance, TRUNCATE(resolution,2) AS `resolution`FROM RT
-SELECT detectorName, elementID, rocID, boardID, channelID, t0, offset, width FROM chamberInfo
 SELECT detectorName, elementID, rocID, boardID, channelID, tPeak, width FROM hodoInfo
+SELECT detectorName, elementID, rocID, boardID, channelID, t0, offset, width FROM chamberInfo
+SELECT detectorName, TRUNCATE(driftTime,1) AS `driftTime`, driftDistance, TRUNCATE(resolution,2) AS `resolution`FROM RT
+SELECT CONCAT_WS('_',hodoDetectorName,CAST(hodoElementID AS CHAR(5))) AS `hodo`, wireDetectorName, MIN(wireElementID) AS `minwire`, MAX(wireElementID) AS `maxwire` FROM HodoMask GROUP BY stationID, hodoDetectorName, hodoElementID, wireDetectorID, wireDetectorName ORDER BY hodoDetectorName, hodoElementID, wireDetectorName
 SELECT roadID, H1, H2, H3, H4 FROM TriggerRoads
 SELECT detectorName, elementID, triggerLevel, rocID, boardID, channelID, tPeak, width FROM triggerInfo
 SELECT scalerName, rocID, boardID, channelID FROM scalerInfo
 
 ==========================================
 FORMAT
-vector<string> settingName = {"user", "password", "HODOMASK", "RT", "CHAMBERINFO", "HODOINFO", "TRIGGERROADS", "TRIGGERINFO", "SCALERINFO"};
+1 user
+2 password
+3 HODOINFO
+4 CHAMBERINFO
+5 RT
+6 HODOMASK
+7 TRIGGERROADS
+8 TRIGGERINFO
+9 SCALERINFO
+
