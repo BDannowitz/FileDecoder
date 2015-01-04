@@ -1,6 +1,7 @@
 //-----------------------------------
 //			File Decoder
 //-----------------------------------
+#include "Uploader.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -72,7 +73,7 @@ int run(char** filenames)
 		port = 3283;
 	}
 	string schema = strtok(NULL,"+");
-	//schema = "user_mariusz_dev"; //TESTING
+	schema = "user_mariusz_dev"; //TESTING
 	string type = strtok(NULL,".");	
 	
 
@@ -157,38 +158,56 @@ int run(char** filenames)
 
 		/* Create a connection */
 		driver = get_driver_instance();
-		con = driver->connect(server, user, password);
+		con = driver->connect(server, user, password); //include port
 		con->setSchema(schema);
 		stmt = con->createStatement();
 		
-		//int appNum = 0;
-		vector<ResultSet *> allResultSets; 
-		for (auto it = queryString.begin(); it != queryString.end(); ++it)
+		if (type == "scaler")
 		{
-			ResultSet *res = stmt->executeQuery(*it);
-			if (UP.initialize(res,allResultSets.size()))
+			ResultSet *res = stmt->executeQuery(*(prev(queryString.end())));
+			if (UP->initialize(res,6))
 			{
-				cerr<<"Problem initializing app number "<<appNum<<endl;
-				//delete everything
-				return 1;	
+				cerr<<"Problem initializing scalerInfo"<<endl;
+				//delete res?
+				//return 1;	
 			}
-			allResultSets.push_back(res);
-			//appNum++;
+			if (UP->decode(rhf, server, schema, eventID, type, stmt))
+			{
+				cerr<<"Decoding hits file error"<<endl;
+				delete res;
+			}
+			delete res;
 		}
-		
-		if (UP.decode(rhf, stmt))
+		else //type == tdc
 		{
-			cerr<<"Decoding hits file error"<<endl;
-			for (auto it = allResultSets.begin(); it != allResultsSets.end(); ++it)
+			vector<ResultSet *> allResultSets; 
+			int appNum = 0;
+			for (auto it = queryString.begin(); it != prev(queryString.end()); ++it)
+			{
+				ResultSet *res = stmt->executeQuery(*it);
+				if (UP->initialize(res,appNum))
+				{
+					cerr<<"Problem initializing app number "<<appNum<<endl;
+					//delete everything
+					//return 1;	
+				}
+				allResultSets.push_back(res);
+				//appNum++;
+			}
+			if (UP->decode(rhf, server, schema, eventID, type, stmt))
+			{
+				cerr<<"Decoding hits file error"<<endl;
+				for (auto it = allResultSets.begin(); it != allResultSets.end(); ++it)
+				{
+					delete *it;
+				}
+				//return 1;	
+			}
+
+			for (auto it = allResultSets.begin(); it != allResultSets.end(); ++it)
 			{
 				delete *it;
 			}
-			return 1;	
-		}
-
-		for (auto it = allResultSets.begin(); it != allResultsSets.end(); ++it)
-		{
-			delete *it;
 		}
 
 		delete UP;
@@ -202,15 +221,13 @@ int run(char** filenames)
   		cout << "# ERR: " << e.what();
   		cout << " (MySQL error code: " << e.getErrorCode();
   		cout << ", SQLState: " << e.getSQLState() << " )" << endl;
-		for (auto it = allResultSets.begin(); it != allResultsSets.end(); ++it)
-		{
-			delete *it;
-		}
-
+		/*
 		delete UP;
 		if (stmt) delete stmt;
 		if (con) delete con;
-		return 1;
+		*/
+		//big delete
+		//return 1;
 	}
 	//system("rm *.out");
 	return 0;

@@ -6,7 +6,7 @@ SELECT detectorName, TRUNCATE(driftTime,1) AS `driftTime`, driftDistance, TRUNCA
 SELECT CONCAT_WS('_',hodoDetectorName,CAST(hodoElementID AS CHAR(5))) AS `hodo`, wireDetectorName, MIN(wireElementID) AS `minwire`, MAX(wireElementID) AS `maxwire` FROM HodoMask GROUP BY stationID, hodoDetectorName, hodoElementID, wireDetectorID, wireDetectorName ORDER BY hodoDetectorName, hodoElementID, wireDetectorName
 SELECT roadID, H1, H2, H3, H4 FROM TriggerRoads
 SELECT detectorName, elementID, triggerLevel, rocID, boardID, channelID, tPeak, width FROM triggerInfo
-SELECT scalerName, rocID, boardID, channelID FROM scalerInfo
+SELECT rocID, boardID, channelID, scalerName FROM scalerInfo
 
 ==========================================
 FORMAT
