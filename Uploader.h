@@ -45,7 +45,7 @@ class Uploader
 		//SCALER_INFO	6
 		int initialize(ResultSet *res, int app);
 
-		int decode(char* rawFile, string server, string schema, int eventID, string type, Statement *stmt);
+		int decode(const char* rawFile, string server, string schema, int eventID, string type, Statement *stmt);
 
 	private:
 		const char DELIMITER = '\t';

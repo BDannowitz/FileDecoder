@@ -45,10 +45,8 @@ char* find(char** files, string flag)
 int run(char** filenames)
 {
 	char* rawHitsFile = find(filenames, "-h");
-	char* rhf;
-	strcpy(rhf,rawHitsFile); 
 	char* settingsFile = find(filenames, "-s");
-	
+	string temp = rawHitsFile;
 	if (rawHitsFile == NULL)
 	{
 		cerr<<"Missing -h RAW_HITS_FILE"<<endl;;
@@ -59,7 +57,6 @@ int run(char** filenames)
 		cerr<<"Missing -s SETTINGS_FILE"<<endl;
 		return 1;
 	}
-	
 	//information from filename
 	//include error catch?
 	char* baseFileName = basename(rawHitsFile);
@@ -75,7 +72,7 @@ int run(char** filenames)
 	string schema = strtok(NULL,"+");
 	schema = "user_mariusz_dev"; //TESTING
 	string type = strtok(NULL,".");	
-	
+	const char *rhf = temp.data();
 
 	//information from settings
 	//FORMAT
@@ -131,6 +128,8 @@ int run(char** filenames)
 	//create Uploader object
 	Uploader* UP = new Uploader();
 
+	clock_t t = clock();
+
 	try
 	{
 		Driver *driver;
@@ -177,6 +176,10 @@ int run(char** filenames)
 				delete res;
 			}
 			delete res;
+			string command = "mysql --local-infile=1 --user=" + user + " --host=" + server + " --password=" + password + " -e " + "\"LOAD DATA LOCAL INFILE 'scaler-e906-db3.fnal.gov-user_mariusz_dev.out' INTO TABLE user_mariusz_dev.Scaler;\"";
+			//string command = "mysql --user=" + user + " --host=" + server + " --password=" + password + " -e " + "\"SELECT * FROM user_mariusz_dev.Scaler;\"";
+			cout << command <<endl;
+			system(command.data());
 		}
 		else //type == tdc
 		{
@@ -185,15 +188,24 @@ int run(char** filenames)
 			for (auto it = queryString.begin(); it != prev(queryString.end()); ++it)
 			{
 				ResultSet *res = stmt->executeQuery(*it);
+				cout<<"init" <<appNum<<endl;
 				if (UP->initialize(res,appNum))
 				{
 					cerr<<"Problem initializing app number "<<appNum<<endl;
 					//delete everything
 					//return 1;	
 				}
+				//res->next();
+				//cout<<res->getString(1)<<endl;
 				allResultSets.push_back(res);
-				//appNum++;
+				appNum++;
 			}
+			//allResultSets[5]->next();	
+			//allResultSets[1]->next();	
+			//allResultSets[2]->next();	
+			//cout << allResultSets[5]->getString(1) <<endl;
+			//cout << allResultSets[1]->getString(1) <<endl;
+			//cout << allResultSets[2]->getString(1) <<endl;
 			if (UP->decode(rhf, server, schema, eventID, type, stmt))
 			{
 				cerr<<"Decoding hits file error"<<endl;
@@ -230,6 +242,8 @@ int run(char** filenames)
 		//return 1;
 	}
 	//system("rm *.out");
+	t = clock() - t;
+	printf("It took me %f seconds to run.\n",((float)t)/CLOCKS_PER_SEC);
 	return 0;
 }
 

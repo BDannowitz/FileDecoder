@@ -12,7 +12,6 @@ Uploader::Uploader()
 
 Uploader::~Uploader()
 {
-	cout << "begin delete" <<endl;
 	if (HIC_Map != nullptr)
 	{
 		delete HIC_Map; 
@@ -45,7 +44,6 @@ Uploader::~Uploader()
 		delete T4;
 		//T4 = nullptr;
 	}
-	cout << "end delete" <<endl;
 }
 
 string Uploader::toString(vector<string> input) //should be pointer b/c by value is bad
@@ -303,7 +301,7 @@ int Uploader::initialize(ResultSet *res, int app)
 	return 0;
 }
 
-int Uploader::decode(char* rawFile, string server, string schema, int eventID, string type, Statement *stmt)
+int Uploader::decode(const char* rawFile, string server, string schema, int eventID, string type, Statement *stmt)
 {
 	vector<string> headerFields;
 	if (type == "scaler")
@@ -312,7 +310,8 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 	}
 	else if (type == "tdc")
 	{
-		headerFields = {"rocID", "boardID", "channelID", "hitID", "spillID", "eventID", "tdcTime"};
+		//headerFields = {"rocID", "boardID", "channelID", "hitID", "spillID", "eventID", "tdcTime"};
+		headerFields = {"hitID", "spillID", "eventID", "rocID", "boardID", "channelID", "tdcTime"};
 	}
 	else
 	{
@@ -355,7 +354,7 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 					string scalerName = (*SI_Map)[SI_HF(wordBuffer[3], wordBuffer[4], wordBuffer[5])];  
 					if (scalerName.empty())
 					{
-						scalerName = "\\N>";
+						scalerName = "\\N";
 					}
 					vector<string> lineInfo = {wordBuffer[0], wordBuffer[1], wordBuffer[2], wordBuffer[3], wordBuffer[4], wordBuffer[5], scalerName, wordBuffer[7], wordBuffer[8]};
 					string outLine = toString(lineInfo);
@@ -366,6 +365,9 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 					scalerFile.write(outLine.data(), outLine.size());
 				}
 				scalerFile.close();
+				//string loadQuery = "LOAD DATA LOCAL INFILE '" + string(scalerFileName) + "' INTO TABLE " + schema + ".Scaler";
+				//cout<<loadQuery<<endl;
+				//stmt->executeQuery(loadQuery);
 			}
 			else //type == tdc
 			{
@@ -449,32 +451,32 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 						wordBuffer[wordIndex] = word;
 						wordIndex++;
 					}
-					vector<string> hashData = (*HIC_Map)[HIC_HF(wordBuffer[0], wordBuffer[1], wordBuffer[2])];  
+					vector<string> hashData = (*HIC_Map)[HIC_HF(wordBuffer[3], wordBuffer[4], wordBuffer[5])];  
 
 					if (hashData.empty())
 					{
 						hashData.push_back("-1");
 						for (int i = 0; i < 4; i++)
 						{
-							hashData.push_back("\\N>");
+							hashData.push_back("\\N");
 						}
 					}
 					string inTime; 
 
 					//universal
 					//hitID
-					lineInfo.push_back(wordBuffer[3]);
-					//spillID
-					lineInfo.push_back(wordBuffer[4]);
-					//eventID
-					lineInfo.push_back(wordBuffer[5]);
-					string curEvent = wordBuffer[5];
-					//rocID
 					lineInfo.push_back(wordBuffer[0]);
-					//boardID
+					//spillID
 					lineInfo.push_back(wordBuffer[1]);
-					//channelID
+					//eventID
 					lineInfo.push_back(wordBuffer[2]);
+					string curEvent = wordBuffer[2];
+					//rocID
+					lineInfo.push_back(wordBuffer[3]);
+					//boardID
+					lineInfo.push_back(wordBuffer[4]);
+					//channelID
+					lineInfo.push_back(wordBuffer[5]);
 
 					int app = atoi(hashData[0].data());
 					if (app == -1)
@@ -482,24 +484,24 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 						//no match found
 
 						//detectorName
-						lineInfo.push_back("\\N>");
+						lineInfo.push_back("\\N");
 						//elementID
-						lineInfo.push_back("\\N>");
+						lineInfo.push_back("\\N");
 						//tdcTime
 						lineInfo.push_back(wordBuffer[6]);
 						//inTime
 						lineInfo.push_back("0");//lineInfo.push_back("NULL");
 						//driftTime
-						lineInfo.push_back("\\N>");
+						lineInfo.push_back("\\N");
 						//driftDistance
-						lineInfo.push_back("\\N>");
+						lineInfo.push_back("\\N");
 						//resolution
-						lineInfo.push_back("\\N>");
+						lineInfo.push_back("\\N");
 					}
 					else if (app == 0)
 					{
 						//hodo match
-						if ((hashData[3] != "\\N>") && (hashData[4] != "\\N>") && (wordBuffer[6] != "\\N>"))
+						if ((hashData[3] != "\\N") && (hashData[4] != "\\N") && (wordBuffer[6] != "\\N"))
 						{
 							double tpeak = atof(hashData[3].data());
 							double width = atof(hashData[4].data());
@@ -531,16 +533,16 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 						//inTime
 						lineInfo.push_back(inTime);
 						//driftTime
-						lineInfo.push_back("\\N>");
+						lineInfo.push_back("\\N");
 						//driftDistance
-						lineInfo.push_back("\\N>");
+						lineInfo.push_back("\\N");
 						//resolution
-						lineInfo.push_back("\\N>");
+						lineInfo.push_back("\\N");
 					}
 					else if (app == 1)
 					{
 						//chamber match
-						if ((hashData[3] != "\\N>") && (hashData[4] != "\\N>") && (hashData[5] != "\\N>") && (wordBuffer[6] != "\\N>"))
+						if ((hashData[3] != "\\N") && (hashData[4] != "\\N") && (hashData[5] != "\\N") && (wordBuffer[6] != "\\N"))
 						{
 							double t0 = atof(hashData[3].data());
 							double off = atof(hashData[4].data());
@@ -560,7 +562,7 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 							inTime = "0";//inTime = "NULL";
 						}
 						string driftTime;
-						if ((wordBuffer[6] != "\\N>") && (hashData[3] != "\\N>"))
+						if ((wordBuffer[6] != "\\N") && (hashData[3] != "\\N"))
 						{
 							double tdcTime = atof(wordBuffer[6].data());
 							double t0 = atof(hashData[3].data());
@@ -576,7 +578,7 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 						}
 						else
 						{
-							driftTime = "\\N>";
+							driftTime = "\\N";
 						}
 						
 							
@@ -592,7 +594,7 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 						lineInfo.push_back(driftTime);
 						
 						//rt mapping
-						if (hashData[1] != "\\N>" && driftTime != "\\N>")	
+						if (hashData[1] != "\\N" && driftTime != "\\N")	
 						{
 							string pCheck = hashData[1];
 							if (pCheck.at(0) == 'P') //capital P!
@@ -602,7 +604,7 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 							vector<string> rtData = (*RT_Map)[(pCheck + "_" + driftTime)]; //didn't use rHashFunction because already truncated driftTime
 							if (rtData.size() == 0) //didn't find anything
 							{
-								lineInfo.insert(lineInfo.end(), 2, "\\N>");
+								lineInfo.insert(lineInfo.end(), 2, "\\N");
 							}
 							else
 							{
@@ -611,7 +613,7 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 						}
 						else
 						{
-							lineInfo.insert(lineInfo.end(), 2, "\\N>");
+							lineInfo.insert(lineInfo.end(), 2, "\\N");
 						}
 					}
 					
@@ -709,7 +711,7 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 								}
 								else
 								{
-									(*itL).push_back("\\N>");
+									(*itL).push_back("\\N");
 								}
 								string outLine = toString(*itL);
 								
@@ -815,7 +817,7 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 							}
 							for (auto road = eventRoads.begin(); road != eventRoads.end(); ++road)
 							{
-								string outLine = "\n" + prevEvent + DELIMITER + (*road);
+								string outLine = prevEvent + DELIMITER + (*road) + "\n";
 								//last line problem
 								triggerRoadsFile.write(outLine.data(), outLine.size());
 							}
@@ -886,7 +888,7 @@ int Uploader::decode(char* rawFile, string server, string schema, int eventID, s
 					}
 					else
 					{
-						(*itL).push_back("\\N>");
+						(*itL).push_back("\\N");
 					}
 					string outLine = toString(*itL);
 					hitsFile.write(outLine.data(), outLine.size());
@@ -1040,6 +1042,5 @@ void Uploader::updateTable(Statement *stmt, int eventID, string type, int num)
 	stringstream ss;
 	ss << "UPDATE decoderInfo SET status=" << num << ", status_history=CONCAT_WS(' ',status_history,'" << num << "') WHERE codaEventID=" << eventID << " AND type='" << type << "'";
 	string query = ss.str();
-	cout<<query<<endl;
-	//stmt->executeQuery(query);
+	stmt->execute(query);
 }
