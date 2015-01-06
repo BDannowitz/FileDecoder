@@ -6,47 +6,23 @@ Uploader::Uploader()
 	SI_Map = new unordered_map<unsigned long, string>;
 	RT_Map = new unordered_map<string, vector<string>>;
 	HM_Map = new unordered_map< string, forward_list< tuple< string, int, int>>>;  
-	B4 = new vector< tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>*>>;
-	T4 = new vector< tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>*>>;
+	M4 = new vector< tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>*>>;
 }
 
 Uploader::~Uploader()
 {
-	if (HIC_Map != nullptr)
-	{
-		delete HIC_Map; 
-		//HIC_Map = nullptr;
-	}
-	if (SI_Map != nullptr)
-	{
-		delete SI_Map; 
-		//SI_Map = nullptr;
-	}
-	if (RT_Map != nullptr)
-	{
-		delete RT_Map;
-		//RT_Map = nullptr;
-	}
-	if (HM_Map != nullptr)
-	{
-		delete HM_Map;
-		//HM_Map = nullptr;
-	}
-	if (B4 != nullptr)
-	{
-		//needs more intense delete, search delete
-		delete B4;
-		//B4 = nullptr;
-	}
-	if (T4 != nullptr)
-	{
-		//needs more intense delete, search delete
-		delete T4;
-		//T4 = nullptr;
-	}
+	delete HIC_Map; 
+	HIC_Map = nullptr;
+	delete SI_Map; 
+	SI_Map = nullptr;
+	delete RT_Map;
+	RT_Map = nullptr;
+	delete HM_Map;
+	HM_Map = nullptr;
+	deleteTrigger();
 }
 
-string Uploader::toString(vector<string> input) //should be pointer b/c by value is bad
+string Uploader::toString(vector<string> &input) //should be pointer b/c by value is bad
 {
 	string output = "";// = "\n";
 	for (vector<string>::iterator it = input.begin(); it != --input.end(); ++it)
@@ -58,7 +34,7 @@ string Uploader::toString(vector<string> input) //should be pointer b/c by value
 }
 
 //update to bitset<12>
-unsigned long Uploader::HIC_HF(string a, string b, string c)
+unsigned long Uploader::HIC_HF(string &a, string &b, string &c)
 {
 	unsigned short d = atoi(a.data());
 	unsigned short e = atoi(b.data());
@@ -71,12 +47,12 @@ unsigned long Uploader::HIC_HF(string a, string b, string c)
 	return out;
 }
 
-unsigned long Uploader::SI_HF(string a, string b, string c)
+unsigned long Uploader::SI_HF(string &a, string &b, string &c)
 {
 	return HIC_HF(a,b,c);
 }
 
-string Uploader::RT_HF(string a, string b)
+string Uploader::RT_HF(string &a, string &b)
 {
 	return (a + "_" + b); 
 }
@@ -118,7 +94,7 @@ int Uploader::initialize(ResultSet *res, int app)
 	}
 	else if (app == 4)
 	{
-		headerFields = {"roadID", "detectorHalf", "H1", "H2", "H3", "H4"};
+		headerFields = {"roadID", "H1", "H2", "H3", "H4"};
 	}
 	else if (app == 5)
 	{
@@ -155,7 +131,10 @@ int Uploader::initialize(ResultSet *res, int app)
 	{
 		if (app == 0 || app == 1)
 		{
-			unsigned long key = HIC_HF(res->getString(index[0]), res->getString(index[1]), res->getString(index[2]));
+			string rocID = res->getString(index[0]);
+			string boardID = res->getString(index[1]);
+			string channelID = res->getString(index[2]);
+			unsigned long key = HIC_HF(rocID, boardID, channelID);
 			vector<string> value; 
 			if (app == 0)
 			{
@@ -169,7 +148,9 @@ int Uploader::initialize(ResultSet *res, int app)
 		}
 		else if (app == 2)
 		{
-			string key = RT_HF(res->getString(index[0]), res->getString(index[1]));
+			string k1 = res->getString(index[0]);
+			string k2 = res->getString(index[1]);
+			string key = RT_HF(k1,k2);
 			vector<string> value = {res->getString(index[2]),res->getString(index[3])};
 			(*RT_Map)[key] = value;
 		}
@@ -197,24 +178,14 @@ int Uploader::initialize(ResultSet *res, int app)
 		{
 			//triggerRoads mapping
 			string roadID = res->getString(index[0]);
-			string detectorHalf = res->getString(index[1]);
-			int H1 = res->getInt(index[2]);
-			int H2 = res->getInt(index[3]);
-			int H3 = res->getInt(index[4]);
-			int H4 = res->getInt(index[5]);
+			int H1 = res->getInt(index[1]);
+			int H2 = res->getInt(index[2]);
+			int H3 = res->getInt(index[3]);
+			int H4 = res->getInt(index[4]);
 
-			vector< tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int, string>>* >>* >>* >> mapping; //should this be a pointer for optimize?
-			if (detectorHalf == "B")
-			{
-				mapping = (*B4);
-			}
-			else
-			{
-				mapping = (*T4);
-			}
 			bool foundH4 = false;
 			tuple<int, string> H1Val = make_tuple(H1, roadID); 
-			for (auto it = mapping.begin(); it != mapping.end(); ++it)
+			for (auto it = M4->begin(); it != M4->end(); ++it)
 			{
 				if (get<0>(*it) == H4)
 				{
@@ -272,15 +243,7 @@ int Uploader::initialize(ResultSet *res, int app)
 				vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>* VecH3H2H1Val = new vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>;
 				VecH3H2H1Val->push_back(H3H2H1Val);
 				tuple<int,vector< tuple<int,vector< tuple<int,vector< tuple<int,string>>*>>*>>*> H4H3H2H1Val = make_tuple(H4, VecH3H2H1Val);
-				mapping.push_back(H4H3H2H1Val);
-			}
-			if (detectorHalf == "B")
-			{
-				(*B4) = mapping;
-			}
-			else
-			{
-				(*T4) = mapping;
+				M4->push_back(H4H3H2H1Val);
 			}
 		}
 		else if (app == 5)
@@ -289,7 +252,10 @@ int Uploader::initialize(ResultSet *res, int app)
 		}
 		else if (app == 6)
 		{
-			unsigned long key = SI_HF(res->getString(index[0]), res->getString(index[1]), res->getString(index[2]));
+			string rocID = res->getString(index[0]);
+			string boardID = res->getString(index[1]);
+			string channelID = res->getString(index[2]);
+			unsigned long key = SI_HF(rocID, boardID, channelID);
 			(*SI_Map)[key] = res->getString(index[3]);
 		}
 	}
@@ -315,7 +281,7 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 	}
 	else
 	{
-		cerr<<"Type error for type = "<<type<<endl;
+		cerr<<"Error! Type allowed tdc or scaler, type = "<<type<<endl;
 		return 1;
 	}
 
@@ -356,8 +322,8 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 					{
 						scalerName = "\\N";
 					}
-					vector<string> lineInfo = {wordBuffer[0], wordBuffer[1], wordBuffer[2], wordBuffer[3], wordBuffer[4], wordBuffer[5], scalerName, wordBuffer[7], wordBuffer[8]};
-					string outLine = toString(lineInfo);
+					vector<string> scalerInfo = {wordBuffer[0], wordBuffer[1], wordBuffer[2], wordBuffer[3], wordBuffer[4], wordBuffer[5], scalerName, wordBuffer[7], wordBuffer[8]};
+					string outLine = toString(scalerInfo);
 					if (reader.eof())
 					{
 						outLine = outLine.substr(0, outLine.size()-1);
@@ -401,6 +367,65 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 				string line;
 				while (getline(reader, line))
 				{
+					/*
+					wordBuffer
+					===========
+					0 hitID
+					1 spillID
+					2 eventID
+					3 rocID
+					4 boardID
+					5 channelID
+					6 tdcTime
+
+					hitInfo
+					==========
+					0 hitID
+					1 spillID
+					2 eventID
+					3 detectorName
+					4 elementID
+					5 tdcTime
+					6 inTime
+					7 masked
+					8 driftTime
+					9 driftDistance
+					10 resolution
+					11 dataQuality
+					 
+					triggerHitInfo
+					==============
+					0 hitID
+					1 spillID
+					2 eventID
+					3 detectorName
+					4 elementID
+					5 triggerLevel
+					6 tdcTime
+					7 inTime
+					8 errorBits
+					9 dataQuality 
+					
+					hashData
+					=================
+					0 app (-1 no match 0 hodo 1 chamber)
+
+					hodo
+					------------
+					1 detectorName
+					2 elementID
+					3 tpeak
+					4 width
+
+					chamber:
+					-------------
+					1 detectorName
+					2 elementID
+					3 t0
+					4 offset
+					5 width
+					*/
+						
 					// -----lineInfo(OUTPUT)------	
 					// 0 hitID
 					// 1 spillID
@@ -418,28 +443,6 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 					// 13 masked
 					//assign lineInfo.push_back( ... );
 					
-					// -----HEADER-------
-					// 0 rocID
-					// 1 boardID
-					// 2 channelID
-					// 3 hitID
-					// 4 spillID
-					// 5 eventID
-					// 6 tdcTime
-					//access thru wordBuffer[ ... ]
-
-					//------hashData-------
-					// 0 app (-1 no match 0 hodo 1 chamber)
-					// 01 detectorName
-					// 02 elementID
-					// 03 tpeak
-					// 04 width
-					// 11 detectorName
-					// 12 elementID
-					// 13 t0
-					// 14 offset
-					// 15 width
-					vector<string> lineInfo;
 					bool h1push = false; //H___ and intime
 
 					//---------------fill line----------------
@@ -462,21 +465,36 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 						}
 					}
 					string inTime; 
-
+					string rocID = wordBuffer[3];
+					//if (rocID == 25)
+					//{
+						//trigger hit 
+					//}
+					//else
+					//{
+					/*hitInfo
+					==========
+					0 hitID
+					1 spillID
+					2 eventID
+					3 detectorName
+					4 elementID
+					5 tdcTime
+					6 inTime
+					7 masked
+					8 driftTime
+					9 driftDistance
+					10 resolution
+					11 dataQuality*/
+					vector<string> hitInfo;
 					//universal
 					//hitID
-					lineInfo.push_back(wordBuffer[0]);
+					hitInfo.push_back(wordBuffer[0]);
 					//spillID
-					lineInfo.push_back(wordBuffer[1]);
+					hitInfo.push_back(wordBuffer[1]);
 					//eventID
-					lineInfo.push_back(wordBuffer[2]);
+					hitInfo.push_back(wordBuffer[2]);
 					string curEvent = wordBuffer[2];
-					//rocID
-					lineInfo.push_back(wordBuffer[3]);
-					//boardID
-					lineInfo.push_back(wordBuffer[4]);
-					//channelID
-					lineInfo.push_back(wordBuffer[5]);
 
 					int app = atoi(hashData[0].data());
 					if (app == -1)
@@ -484,19 +502,19 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 						//no match found
 
 						//detectorName
-						lineInfo.push_back("\\N");
+						hitInfo.push_back("\\N");
 						//elementID
-						lineInfo.push_back("\\N");
+						hitInfo.push_back("\\N");
 						//tdcTime
-						lineInfo.push_back(wordBuffer[6]);
+						hitInfo.push_back(wordBuffer[6]);
 						//inTime
-						lineInfo.push_back("0");//lineInfo.push_back("NULL");
+						hitInfo.push_back("0");//lineInfo.push_back("NULL");
 						//driftTime
-						lineInfo.push_back("\\N");
+						hitInfo.push_back("\\N");
 						//driftDistance
-						lineInfo.push_back("\\N");
+						hitInfo.push_back("\\N");
 						//resolution
-						lineInfo.push_back("\\N");
+						hitInfo.push_back("\\N");
 					}
 					else if (app == 0)
 					{
@@ -525,19 +543,19 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 						}
 
 						//detectorName
-						lineInfo.push_back(hashData[1]);
+						hitInfo.push_back(hashData[1]);
 						//elementID
-						lineInfo.push_back(hashData[2]);
+						hitInfo.push_back(hashData[2]);
 						//tdcTime
-						lineInfo.push_back(wordBuffer[6]);
+						hitInfo.push_back(wordBuffer[6]);
 						//inTime
-						lineInfo.push_back(inTime);
+						hitInfo.push_back(inTime);
 						//driftTime
-						lineInfo.push_back("\\N");
+						hitInfo.push_back("\\N");
 						//driftDistance
-						lineInfo.push_back("\\N");
+						hitInfo.push_back("\\N");
 						//resolution
-						lineInfo.push_back("\\N");
+						hitInfo.push_back("\\N");
 					}
 					else if (app == 1)
 					{
@@ -583,15 +601,15 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 						
 							
 						//detectorName
-						lineInfo.push_back(hashData[1]);
+						hitInfo.push_back(hashData[1]);
 						//elementID
-						lineInfo.push_back(hashData[2]);
+						hitInfo.push_back(hashData[2]);
 						//tdcTime
-						lineInfo.push_back(wordBuffer[6]);
+						hitInfo.push_back(wordBuffer[6]);
 						//inTime
-						lineInfo.push_back(inTime);
+						hitInfo.push_back(inTime);
 						//driftTime
-						lineInfo.push_back(driftTime);
+						hitInfo.push_back(driftTime);
 						
 						//rt mapping
 						if (hashData[1] != "\\N" && driftTime != "\\N")	
@@ -601,19 +619,19 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 							{
 								pCheck = pCheck.substr(0,3);
 							}
-							vector<string> rtData = (*RT_Map)[(pCheck + "_" + driftTime)]; //didn't use rHashFunction because already truncated driftTime
+							vector<string> rtData = (*RT_Map)[RT_HF(pCheck,driftTime)]; //didn't use rHashFunction because already truncated driftTime
 							if (rtData.size() == 0) //didn't find anything
 							{
-								lineInfo.insert(lineInfo.end(), 2, "\\N");
+								hitInfo.insert(hitInfo.end(), 2, "\\N");
 							}
 							else
 							{
-								lineInfo.insert(lineInfo.end(), rtData.begin(), rtData.end());
+								hitInfo.insert(hitInfo.end(), rtData.begin(), rtData.end());
 							}
 						}
 						else
 						{
-							lineInfo.insert(lineInfo.end(), 2, "\\N");
+							hitInfo.insert(hitInfo.end(), 2, "\\N");
 						}
 					}
 					
@@ -623,31 +641,9 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 					{
 						if (h1push)
 						{
-							char thirdLet = hashData[1].data()[2];
-							if (thirdLet == 'B')
-							{
-								inTimeHodos.push_front(HM_HF(hashData[1],hashData[2]));
-								vector<int>* vec = &BTriggerGroup[hashData[1].data()[1]-'1'];
-								int val = atoi(hashData[2].data());
-								//BTriggerGroup[hashData[1].data()[1]-'1'].push_back(atoi(hashData[2].data()));
-								if (find(vec->begin(), vec->end(), val) == vec->end())
-								{
-									vec->push_back(val);
-								}
-							}
-							else if (thirdLet == 'T')
-							{
-								inTimeHodos.push_front(HM_HF(hashData[1],hashData[2]));
-								vector<int>* vec = &TTriggerGroup[hashData[1].data()[1]-'1'];
-								int val = atoi(hashData[2].data());
-								//TTriggerGroup[hashData[1].data()[1]-'1'].push_back(atoi(hashData[2].data()));
-								if (find(vec->begin(), vec->end(), val) == vec->end())
-								{
-									vec->push_back(val);
-								}
-							}
+							fillTriggerGroups(hashData, inTimeHodos, BTriggerGroup, TTriggerGroup);
 						}
-						storage.push_back(lineInfo);
+						storage.push_back(hitInfo);
 					}
 					else
 					{
@@ -657,171 +653,14 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 							prevEvent = curEvent;	
 							if (h1push)
 							{
-								char thirdLet = hashData[1].data()[2];
-								if (thirdLet == 'B')
-								{
-									inTimeHodos.push_front(HM_HF(hashData[1],hashData[2]));
-									vector<int>* vec = &BTriggerGroup[hashData[1].data()[1]-'1'];
-									int val = atoi(hashData[2].data());
-									//BTriggerGroup[hashData[1].data()[1]-'1'].push_back(atoi(hashData[2].data()));
-									if (find(vec->begin(), vec->end(), val) == vec->end())
-									{
-										vec->push_back(val);
-									}
-								}
-								else if (thirdLet == 'T')
-								{
-									inTimeHodos.push_front(HM_HF(hashData[1],hashData[2]));
-									vector<int>* vec = &TTriggerGroup[hashData[1].data()[1]-'1'];
-									int val = atoi(hashData[2].data());
-									//TTriggerGroup[hashData[1].data()[1]-'1'].push_back(atoi(hashData[2].data()));
-									if (find(vec->begin(), vec->end(), val) == vec->end())
-									{
-										vec->push_back(val);
-									}
-								}
+								fillTriggerGroups(hashData, inTimeHodos, BTriggerGroup, TTriggerGroup);
 							}
-							storage.push_back(lineInfo);
+							storage.push_back(hitInfo);
 						}
 						else
 						{
-							//function analize//
-							//masking
-							forward_list<tuple< string, int, int>> bigDs = compileInTimeHodos(inTimeHodos);
-							for (auto itL = storage.begin(); itL != storage.end(); ++itL)
-							{
-								string maskedVal = "0";
-								string d = (*itL)[6];
-								int elemID = atoi((*itL)[7].data());
-								char fLet = d.data()[0];
-								if ((fLet == 'D') || (fLet == 'P'))
-								{
-									for (auto itD = bigDs.begin(); itD != bigDs.end(); ++itD)
-									{
-										string dName = get<0>(*itD);
-										int start = get<1>(*itD);
-										int end = get<2>(*itD);
-										if ((d == dName) && (elemID >= start) && (elemID <= end)) 
-										{
-											maskedVal = "1";
-											break;
-										}
-									}
-									(*itL).push_back(maskedVal);
-								}
-								else
-								{
-									(*itL).push_back("\\N");
-								}
-								string outLine = toString(*itL);
-								
-								if (reader.eof())
-								{
-									outLine = outLine.substr(0, outLine.size()-1);
-								}
-								hitsFile.write(outLine.data(), outLine.size());
-							}
-							//trigger
-							//event = prevEvent; or storage	
-							vector< string> eventRoads;
-							
-							//BTriggers
-							auto eventB4s = BTriggerGroup[3];
-							for (auto eb4 = eventB4s.begin(); eb4 != eventB4s.end(); ++eb4)
-							{
-								for (auto mb4 = B4->begin(); mb4 != B4->end(); ++mb4)
-								{
-									if ((*eb4) == get<0>(*mb4))
-									{
-										auto eventB3s = BTriggerGroup[2];
-										for (auto eb3 = eventB3s.begin(); eb3 != eventB3s.end(); ++eb3)
-										{
-											auto mapB3s = get<1>(*mb4);
-											for (auto mb3 = mapB3s->begin(); mb3 != mapB3s->end(); ++mb3)
-											{
-												if ((*eb3) == get<0>(*mb3))
-												{
-													auto eventB2s = BTriggerGroup[1];
-													for (auto eb2 = eventB2s.begin(); eb2 != eventB2s.end(); ++eb2)
-													{
-														auto mapB2s = get<1>(*mb3);
-														for (auto mb2 = mapB2s->begin(); mb2 != mapB2s->end(); ++mb2)
-														{
-															if ((*eb2) == get<0>(*mb2))
-															{
-																auto eventB1s = BTriggerGroup[0];
-																for (auto eb1 = eventB1s.begin(); eb1 != eventB1s.end(); ++eb1)
-																{
-																	auto mapB1s = get<1>(*mb2);
-																	for (auto mb1 = mapB1s->begin(); mb1 != mapB1s->end(); ++mb1)
-																	{
-																		if ((*eb1) == get<0>(*mb1))
-																		{
-																			eventRoads.push_back(get<1>(*mb1));
-																		}
-																	}
-																}
-															}
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-							//TTriggers
-							eventB4s = TTriggerGroup[3];
-							for (auto eb4 = eventB4s.begin(); eb4 != eventB4s.end(); ++eb4)
-							{
-								for (auto mb4 = T4->begin(); mb4 != T4->end(); ++mb4)
-								{
-									if ((*eb4) == get<0>(*mb4))
-									{
-										auto eventB3s = TTriggerGroup[2];
-										for (auto eb3 = eventB3s.begin(); eb3 != eventB3s.end(); ++eb3)
-										{
-											auto mapB3s = get<1>(*mb4);
-											for (auto mb3 = mapB3s->begin(); mb3 != mapB3s->end(); ++mb3)
-											{
-												if ((*eb3) == get<0>(*mb3))
-												{
-													auto eventB2s = TTriggerGroup[1];
-													for (auto eb2 = eventB2s.begin(); eb2 != eventB2s.end(); ++eb2)
-													{
-														auto mapB2s = get<1>(*mb3);
-														for (auto mb2 = mapB2s->begin(); mb2 != mapB2s->end(); ++mb2)
-														{
-															if ((*eb2) == get<0>(*mb2))
-															{
-																auto eventB1s = TTriggerGroup[0];
-																for (auto eb1 = eventB1s.begin(); eb1 != eventB1s.end(); ++eb1)
-																{
-																	auto mapB1s = get<1>(*mb2);
-																	for (auto mb1 = mapB1s->begin(); mb1 != mapB1s->end(); ++mb1)
-																	{
-																		if ((*eb1) == get<0>(*mb1))
-																		{
-																			eventRoads.push_back(get<1>(*mb1));
-																		}
-																	}
-																}
-															}
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-							for (auto road = eventRoads.begin(); road != eventRoads.end(); ++road)
-							{
-								string outLine = prevEvent + DELIMITER + (*road) + "\n";
-								//last line problem
-								triggerRoadsFile.write(outLine.data(), outLine.size());
-							}
-							//function analize//
+							analyzeMasking(inTimeHodos, storage, hitsFile, triggerHitsFile);
+							analyzeTrigger(prevEvent, BTriggerGroup, TTriggerGroup, triggerRoadsFile);
 
 							//clear triggerGroups
 							for (int i = 0; i < 4; i++)	
@@ -833,171 +672,19 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 							storage.clear();
 							inTimeHodos.clear();
 							if (h1push)
-							{
-								char thirdLet = hashData[1].data()[2];
-								if (thirdLet == 'B')
-								{
-									inTimeHodos.push_front(HM_HF(hashData[1],hashData[2]));
-									vector<int>* vec = &BTriggerGroup[hashData[1].data()[1]-'1'];
-									int val = atoi(hashData[2].data());
-									//BTriggerGroup[hashData[1].data()[1]-'1'].push_back(atoi(hashData[2].data()));
-									if (find(vec->begin(), vec->end(), val) == vec->end())
-									{
-										vec->push_back(val);
-									}
-								}
-								else if (thirdLet == 'T')
-								{
-									inTimeHodos.push_front(HM_HF(hashData[1],hashData[2]));
-									vector<int>* vec = &TTriggerGroup[hashData[1].data()[1]-'1'];
-									int val = atoi(hashData[2].data());
-									//TTriggerGroup[hashData[1].data()[1]-'1'].push_back(atoi(hashData[2].data()));
-									if (find(vec->begin(), vec->end(), val) == vec->end())
-									{
-										vec->push_back(val);
-									}
-								}
+							{	
+								fillTriggerGroups(hashData, inTimeHodos, BTriggerGroup, TTriggerGroup);
 							}
-							storage.push_back(lineInfo);
+							storage.push_back(hitInfo);
 							prevEvent = curEvent;	
 						}
 					}
+				//}
+				analyzeMasking(inTimeHodos, storage, hitsFile, triggerHitsFile);
+				analyzeTrigger(prevEvent, BTriggerGroup, TTriggerGroup, triggerRoadsFile);
 				}
-				//function analize//
-				//masking
-				forward_list<tuple< string, int, int>> bigDs = compileInTimeHodos(inTimeHodos);
-				for (auto itL = storage.begin(); itL != storage.end(); ++itL)
-				{
-					string maskedVal = "0";
-					string d = (*itL)[6];
-					int elemID = atoi((*itL)[7].data());
-					if ((d.data())[0] == 'D')
-					{
-						for (auto itD = bigDs.begin(); itD != bigDs.end(); ++itD)
-						{
-							string dName = get<0>(*itD);
-							int start = get<1>(*itD);
-							int end = get<2>(*itD);
-							if ((d == dName) && (elemID >= start) && (elemID <= end)) 
-							{
-								maskedVal = "1";
-								break;
-							}
-						}
-						(*itL).push_back(maskedVal);
-					}
-					else
-					{
-						(*itL).push_back("\\N");
-					}
-					string outLine = toString(*itL);
-					hitsFile.write(outLine.data(), outLine.size());
-					//eof issue
-				}
-				//trigger
-				//event = prevEvent; or storage	
-				vector< string> eventRoads;
 				
-				//BTriggers
-				auto eventB4s = BTriggerGroup[3];
-				for (auto eb4 = eventB4s.begin(); eb4 != eventB4s.end(); ++eb4)
-				{
-					for (auto mb4 = B4->begin(); mb4 != B4->end(); ++mb4)
-					{
-						if ((*eb4) == get<0>(*mb4))
-						{
-							auto eventB3s = BTriggerGroup[2];
-							for (auto eb3 = eventB3s.begin(); eb3 != eventB3s.end(); ++eb3)
-							{
-								auto mapB3s = get<1>(*mb4);
-								for (auto mb3 = mapB3s->begin(); mb3 != mapB3s->end(); ++mb3)
-								{
-									if ((*eb3) == get<0>(*mb3))
-									{
-										auto eventB2s = BTriggerGroup[1];
-										for (auto eb2 = eventB2s.begin(); eb2 != eventB2s.end(); ++eb2)
-										{
-											auto mapB2s = get<1>(*mb3);
-											for (auto mb2 = mapB2s->begin(); mb2 != mapB2s->end(); ++mb2)
-											{
-												if ((*eb2) == get<0>(*mb2))
-												{
-													auto eventB1s = BTriggerGroup[0];
-													for (auto eb1 = eventB1s.begin(); eb1 != eventB1s.end(); ++eb1)
-													{
-														auto mapB1s = get<1>(*mb2);
-														for (auto mb1 = mapB1s->begin(); mb1 != mapB1s->end(); ++mb1)
-														{
-															if ((*eb1) == (get<0>(*mb1)))
-															{
-																eventRoads.push_back(get<1>(*mb1));
-															}
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-				//TTriggers
-				eventB4s = TTriggerGroup[3];
-				for (auto eb4 = eventB4s.begin(); eb4 != eventB4s.end(); ++eb4)
-				{
-					for (auto mb4 = T4->begin(); mb4 != T4->end(); ++mb4)
-					{
-						if ((*eb4) == get<0>(*mb4))
-						{
-							auto eventB3s = TTriggerGroup[2];
-							for (auto eb3 = eventB3s.begin(); eb3 != eventB3s.end(); ++eb3)
-							{
-								auto mapB3s = get<1>(*mb4);
-								for (auto mb3 = mapB3s->begin(); mb3 != mapB3s->end(); ++mb3)
-								{
-									if ((*eb3) == get<0>(*mb3))
-									{
-										auto eventB2s = TTriggerGroup[1];
-										for (auto eb2 = eventB2s.begin(); eb2 != eventB2s.end(); ++eb2)
-										{
-											auto mapB2s = get<1>(*mb3);
-											for (auto mb2 = mapB2s->begin(); mb2 != mapB2s->end(); ++mb2)
-											{
-												if ((*eb2) == get<0>(*mb2))
-												{
-													auto eventB1s = TTriggerGroup[0];
-													for (auto eb1 = eventB1s.begin(); eb1 != eventB1s.end(); ++eb1)
-													{
-														auto mapB1s = get<1>(*mb2);
-														for (auto mb1 = mapB1s->begin(); mb1 != mapB1s->end(); ++mb1)
-														{
-															if ((*eb1) == (get<0>(*mb1)))
-															{
-																eventRoads.push_back(get<1>(*mb1));
-															}
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-				for (auto road = eventRoads.begin(); road != eventRoads.end(); ++road)
-				{
-					string outLine = prevEvent + DELIMITER + (*road) + "\n";
-					/*if (road = --eventRoads.end())
-					{
-						outLine = prevEvent + DELIMITER + (*road);
-					}*/
-					triggerRoadsFile.write(outLine.data(), outLine.size());
-				}
-				//function analize//
+				//close files
 				hitsFile.close();
 				triggerHitsFile.close();
 				triggerRoadsFile.close();
@@ -1020,12 +707,12 @@ int Uploader::decode(const char* rawFile, string server, string schema, int even
 	return 0;
 }
 
-forward_list< tuple< string, int, int>> Uploader::compileInTimeHodos(forward_list< string> H1s)
+forward_list< tuple< string, int, int>> Uploader::compileInTimeHodos(forward_list<string> &inTimeHodos)
 {
 	//H1s, forward list with all Hodoscope detectors with inTime = 1 for a given event
 	//use HM_Map to decode 
 	forward_list< tuple< string, int, int>> maskedDs;
-	for (auto it = H1s.begin(); it != H1s.end(); ++it)
+	for (auto it = inTimeHodos.begin(); it != inTimeHodos.end(); ++it)
 	{
 		//eventually make more complex
 		auto tempL = (*HM_Map)[*it];
@@ -1043,4 +730,193 @@ void Uploader::updateTable(Statement *stmt, int eventID, string type, int num)
 	ss << "UPDATE decoderInfo SET status=" << num << ", status_history=CONCAT_WS(' ',status_history,'" << num << "') WHERE codaEventID=" << eventID << " AND type='" << type << "'";
 	string query = ss.str();
 	stmt->execute(query);
+}
+
+void Uploader::fillTriggerGroups(vector<string> &hashData, forward_list<string> &inTimeHodos, vector<vector<int>> &BTriggerGroup, vector<vector<int>> &TTriggerGroup)
+{
+	char thirdLet = hashData[1].data()[2];
+	if (thirdLet == 'B')
+	{
+		inTimeHodos.push_front(HM_HF(hashData[1],hashData[2]));
+		vector<int>* vec = &BTriggerGroup[hashData[1].data()[1]-'1'];
+		int val = atoi(hashData[2].data());
+		//BTriggerGroup[hashData[1].data()[1]-'1'].push_back(atoi(hashData[2].data()));
+		if (find(vec->begin(), vec->end(), val) == vec->end())
+		{
+			vec->push_back(val);
+		}
+	}
+	else if (thirdLet == 'T')
+	{
+		inTimeHodos.push_front(HM_HF(hashData[1],hashData[2]));
+		vector<int>* vec = &TTriggerGroup[hashData[1].data()[1]-'1'];
+		int val = atoi(hashData[2].data());
+		//TTriggerGroup[hashData[1].data()[1]-'1'].push_back(atoi(hashData[2].data()));
+		if (find(vec->begin(), vec->end(), val) == vec->end())
+		{
+			vec->push_back(val);
+		}
+	}
+}
+
+void Uploader::analyzeMasking(forward_list<string> &inTimeHodos, vector<vector<string>> &storage, ofstream &hitsFile, ofstream &triggerHitsFile)
+{
+	forward_list<tuple< string, int, int>> bigDs = compileInTimeHodos(inTimeHodos);
+	for (auto itL = storage.begin(); itL != storage.end(); ++itL)
+	{
+		string maskedVal = "0";
+		string d = (*itL)[6];
+		int elemID = atoi((*itL)[7].data());
+		char fLet = d.data()[0];
+		if ((fLet == 'D') || (fLet == 'P'))
+		{
+			for (auto itD = bigDs.begin(); itD != bigDs.end(); ++itD)
+			{
+				string dName = get<0>(*itD);
+				int start = get<1>(*itD);
+				int end = get<2>(*itD);
+				if ((d == dName) && (elemID >= start) && (elemID <= end)) 
+				{
+					maskedVal = "1";
+					break;
+				}
+			}
+			(*itL).push_back(maskedVal);
+		}
+		else
+		{
+			(*itL).push_back("\\N");
+		}
+		string outLine = toString(*itL);
+		
+		/*if (reader.eof())
+		{
+			outLine = outLine.substr(0, outLine.size()-1);
+		}*/
+		hitsFile.write(outLine.data(), outLine.size());
+	}
+}
+
+void Uploader::analyzeTrigger(string prevEvent, vector<vector<int>> &BTriggerGroup, vector<vector<int>> &TTriggerGroup, ofstream &triggerRoadsFile)
+{
+	//event = prevEvent; or storage	
+	vector< string> eventRoads;
+	
+	//BTriggers
+	auto eventB4s = BTriggerGroup[3];
+	for (auto eb4 = eventB4s.begin(); eb4 != eventB4s.end(); ++eb4)
+	{
+		for (auto mb4 = M4->begin(); mb4 != M4->end(); ++mb4)
+		{
+			if ((*eb4) == get<0>(*mb4))
+			{
+				auto eventB3s = BTriggerGroup[2];
+				for (auto eb3 = eventB3s.begin(); eb3 != eventB3s.end(); ++eb3)
+				{
+					auto mapB3s = get<1>(*mb4);
+					for (auto mb3 = mapB3s->begin(); mb3 != mapB3s->end(); ++mb3)
+					{
+						if ((*eb3) == get<0>(*mb3))
+						{
+							auto eventB2s = BTriggerGroup[1];
+							for (auto eb2 = eventB2s.begin(); eb2 != eventB2s.end(); ++eb2)
+							{
+								auto mapB2s = get<1>(*mb3);
+								for (auto mb2 = mapB2s->begin(); mb2 != mapB2s->end(); ++mb2)
+								{
+									if ((*eb2) == get<0>(*mb2))
+									{
+										auto eventB1s = BTriggerGroup[0];
+										for (auto eb1 = eventB1s.begin(); eb1 != eventB1s.end(); ++eb1)
+										{
+											auto mapB1s = get<1>(*mb2);
+											for (auto mb1 = mapB1s->begin(); mb1 != mapB1s->end(); ++mb1)
+											{
+												if ((*eb1) == get<0>(*mb1))
+												{
+													string B_is_neg = "-" + get<1>(*mb1);
+													eventRoads.push_back(B_is_neg);
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	//TTriggers
+	eventB4s = TTriggerGroup[3];
+	for (auto eb4 = eventB4s.begin(); eb4 != eventB4s.end(); ++eb4)
+	{
+		for (auto mb4 = M4->begin(); mb4 != M4->end(); ++mb4)
+		{
+			if ((*eb4) == get<0>(*mb4))
+			{
+				auto eventB3s = TTriggerGroup[2];
+				for (auto eb3 = eventB3s.begin(); eb3 != eventB3s.end(); ++eb3)
+				{
+					auto mapB3s = get<1>(*mb4);
+					for (auto mb3 = mapB3s->begin(); mb3 != mapB3s->end(); ++mb3)
+					{
+						if ((*eb3) == get<0>(*mb3))
+						{
+							auto eventB2s = TTriggerGroup[1];
+							for (auto eb2 = eventB2s.begin(); eb2 != eventB2s.end(); ++eb2)
+							{
+								auto mapB2s = get<1>(*mb3);
+								for (auto mb2 = mapB2s->begin(); mb2 != mapB2s->end(); ++mb2)
+								{
+									if ((*eb2) == get<0>(*mb2))
+									{
+										auto eventB1s = TTriggerGroup[0];
+										for (auto eb1 = eventB1s.begin(); eb1 != eventB1s.end(); ++eb1)
+										{
+											auto mapB1s = get<1>(*mb2);
+											for (auto mb1 = mapB1s->begin(); mb1 != mapB1s->end(); ++mb1)
+											{
+												if ((*eb1) == get<0>(*mb1))
+												{
+													eventRoads.push_back(get<1>(*mb1));
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	for (auto road = eventRoads.begin(); road != eventRoads.end(); ++road)
+	{
+		string outLine = prevEvent + DELIMITER + (*road) + "\n";
+		//last line problem
+		triggerRoadsFile.write(outLine.data(), outLine.size());
+	}
+}
+
+void Uploader::deleteTrigger()
+{
+	for (auto m4 = M4->begin(); m4 != M4->end(); ++m4)
+	{
+		auto M3s = get<1>(*m4);
+		for (auto m3 = M3s->begin(); m3 != M3s->end(); ++m3)
+		{
+			auto M2s = get<1>(*m3);
+			for (auto m2 = M2s->begin(); m2 != M2s->end(); ++m2)
+			{
+				auto M1s = get<1>(*m2);
+				delete M1s;
+			}
+			delete M2s;
+		}
+		delete M3s;
+	}
+	delete M4;
 }

@@ -24,6 +24,9 @@
 #include <cppconn/statement.h> //needed?
 #include <cppconn/exception.h> //might be needed?
 
+//timing
+#include <time.h>
+
 
 using namespace std;
 using namespace sql;
@@ -58,28 +61,31 @@ class Uploader
 
 		//HODOINFO and CHAMBERINFO
 		unordered_map<unsigned long, vector<string>>* HIC_Map;  
-		unsigned long HIC_HF(string a, string b, string c);
+		unsigned long HIC_HF(string &a, string &b, string &c);
 
 		//RT
 		unordered_map<string, vector<string>>* RT_Map;  
-		string RT_HF(string a, string b); 
+		string RT_HF(string &a, string &b); 
 
 		//HODOMASK
 		unordered_map< string, forward_list< tuple< string, int, int>>>* HM_Map;  
 		string HM_HF(string a, string b); //compare after H?
-		forward_list< tuple< string, int, int>> compileInTimeHodos(forward_list< string> inTimeHodos); //addition optimization by comparing lists further
+		forward_list< tuple< string, int, int>> compileInTimeHodos(forward_list<string> &inTimeHodos); //addition optimization by comparing lists further
 		//is this comparing everything? list<tuple<string list< tuple<int, int>>> needed?
 
 		//TRIGGER_ROAD
-		vector< tuple< int, vector< tuple< int, vector< tuple< int, vector< tuple<int, string>>*> >*> >*> >* B4;
-		vector< tuple< int, vector< tuple< int, vector< tuple< int, vector< tuple<int, string>>*> >*> >*> >* T4;
+		vector< tuple< int, vector< tuple< int, vector< tuple< int, vector< tuple<int, string>>*> >*> >*> >* M4;
 
 
 		//SCALERINFO
 		unordered_map<unsigned long, string>* SI_Map;  
-		unsigned long SI_HF(string a, string b, string c);
+		unsigned long SI_HF(string &a, string &b, string &c);
 
-		string toString(vector<string> input);
+		string toString(vector<string> &input);
+		void fillTriggerGroups(vector<string> &hashData, forward_list<string> &inTimeHodos, vector<vector<int>> &BTriggerGroup, vector<vector<int>> &TTriggerGroup);
+		void analyzeMasking(forward_list<string> &inTimeHodos, vector<vector<string>> &storage, ofstream &hitsFile, ofstream &triggerHitsFile);
+		void analyzeTrigger(string prevEvent, vector<vector<int>> &BTriggerGroup, vector<vector<int>> &TTriggerGroup, ofstream &triggerRoadsFile);
+		void deleteTrigger();
 };
 
 #endif

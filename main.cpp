@@ -42,6 +42,7 @@ char* find(char** files, string flag)
 //{
 //}
 
+
 int run(char** filenames)
 {
 	char* rawHitsFile = find(filenames, "-h");
@@ -135,30 +136,22 @@ int run(char** filenames)
 		Driver *driver;
 		Connection *con;
 	    Statement *stmt;
+        ConnectOptionsMap opts;
 
-		/*ResultSet *hodoMaskRes;
-		ResultSet *RTRes;
-		ResultSet *chamberInfoRes;
-		ResultSet *hodoInfoRes;
-		ResultSet *triggerRoadsRes;
-		ResultSet *triggerInfoRes;
-		ResultSet *scalerInfoRes; 
-		vector<ResultSet*> queryResult;*/
-		
-		/*while (res->next()) {
-			cout << res->getString(1) << endl;
-		}
-		cout<<"next query"<<endl;
-		res = stmt->executeQuery(RTQuery);
-		while (res->next()) {
-			cout << res->getString(1) << endl;
-		}
-		*/
+
+  		opts["hostName"]=server;
+        opts["userName"]=user;
+        opts["password"]=password;
+        opts["schema"]=schema;
+		opts["DENABLED_LOCAL_INFILE"]=1;
+        //opts["allowLoadLocalInfile"]=1;
+        //opts["allowUrlInLoadLocalInfile"]=1;
 
 		/* Create a connection */
 		driver = get_driver_instance();
-		con = driver->connect(server, user, password); //include port
-		con->setSchema(schema);
+		con = driver->connect(opts);
+		//con = driver->connect(server, user, password); //include port
+		//con->setSchema(schema);
 		stmt = con->createStatement();
 		
 		if (type == "scaler")
@@ -176,10 +169,11 @@ int run(char** filenames)
 				delete res;
 			}
 			delete res;
-			string command = "mysql --local-infile=1 --user=" + user + " --host=" + server + " --password=" + password + " -e " + "\"LOAD DATA LOCAL INFILE 'scaler-e906-db3.fnal.gov-user_mariusz_dev.out' INTO TABLE user_mariusz_dev.Scaler;\"";
+			/*string command = "mysql --local-infile=1 --user=" + user + " --host=" + server + " --password=" + password + " -e " + "\"LOAD DATA LOCAL INFILE 'scaler-e906-db3.fnal.gov-user_mariusz_dev.out' INTO TABLE user_mariusz_dev.Scaler;\"";
 			//string command = "mysql --user=" + user + " --host=" + server + " --password=" + password + " -e " + "\"SELECT * FROM user_mariusz_dev.Scaler;\"";
 			cout << command <<endl;
-			system(command.data());
+			system(command.data());*/
+			stmt->execute("LOAD DATA LOCAL INFILE 'scaler-e906-db3.fnal.gov-user_mariusz_dev.out' INTO TABLE user_mariusz_dev.Scaler");
 		}
 		else //type == tdc
 		{
