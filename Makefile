@@ -5,8 +5,8 @@ DEBUG = -g
 #Include $(DEBUG) in CFLAGS and LFLAGS to debug
 CFLAGS = -Wall -c -lmysqlcppconn
 LFLAGS = -Wall -lmysqlcppconn
-INCLUDE = -I/usr/include/cppconn
-LIB = -L/usr/lib 
+INCLUDE = -Iinclude/cppconn
+LIB = -Llib 
 
 all: main.cpp $(OBJS)
 	$(CC) $(INCLUDE) $(LIB) main.cpp $(OBJS) -o $(PNAME) $(LFLAGS) 
