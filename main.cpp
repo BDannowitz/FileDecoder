@@ -135,17 +135,14 @@ int run(char** filenames)
 	{
 		Driver *driver;
 		Connection *con;
-	    Statement *stmt;
-        ConnectOptionsMap opts;
+	 	Statement *stmt;
+	        ConnectOptionsMap opts;
 
-
-  		opts["hostName"]=server;
-        opts["userName"]=user;
-        opts["password"]=password;
-        opts["schema"]=schema;
-		opts["DENABLED_LOCAL_INFILE"]=1;
-        //opts["allowLoadLocalInfile"]=1;
-        //opts["allowUrlInLoadLocalInfile"]=1;
+		opts["hostName"]=server;
+		opts["userName"]=user;
+		opts["password"]=password;
+		opts["schema"]=schema;
+		opts["OPT_LOCAL_INFILE"]=1;
 
 		/* Create a connection */
 		driver = get_driver_instance();
